@@ -20,13 +20,13 @@ class CreateUserUseCase:
         existing_user = await self.user_repository.get_by_email(input_data.email)
         if existing_user:
             raise ValueError("User with this email already exists")
-        print("passed the if")
         # Create new user
         user = User(
             email=Email(input_data.email),
             hashed_password=get_password_hash(input_data.password),
             is_superuser=input_data.is_superuser
         )
+        
         print(user,"user before saving")
         # Save and return user
         created_user = await self.user_repository.create(user)
