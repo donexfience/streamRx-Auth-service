@@ -1,16 +1,19 @@
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
 import aiosmtplib
+import os
 from typing import Optional
 
 class EmailServiceUseCase:
     def __init__(
         self,
-        smtp_host: str = "smtp.gmail.com",
-        smtp_port: int = 587,
-        username: str = "your-email@gmail.com",
-        password: str = "your-app-specific-password",
-        use_tls: bool = True
+        smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com"),
+        smtp_port = int(os.getenv("SMTP_PORT", 587)),
+        username = os.getenv("SMTP_USER", "your-email@gmail.com"),
+        password = os.getenv("SMTP_PASSWORD", "your-app-specific-password"),
+        use_tls = bool(os.getenv("SMTP_USE_TLS", True))
+
     ):
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
