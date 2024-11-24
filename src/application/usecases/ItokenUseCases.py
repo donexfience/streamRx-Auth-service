@@ -16,7 +16,7 @@ class TokenServiceUseCase:
             "exp": expire,
             "token_type": "access"
         })
-        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+        return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
     @staticmethod
     def decode_token(token: str) -> Dict:
@@ -25,7 +25,7 @@ class TokenServiceUseCase:
             payload = jwt.decode(
                 token,
                 settings.SECRET_KEY,
-                algorithms=[settings.ALGORITHM]
+                algorithms=[settings.JWT_ALGORITHM]
             )
             return payload
         except jwt.ExpiredSignatureError:

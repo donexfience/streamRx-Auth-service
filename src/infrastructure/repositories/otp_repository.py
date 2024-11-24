@@ -25,7 +25,8 @@ class SQLAlchemyOTPRepository(OTPRepository):
             code=otp_model.code,
             created_at=otp_model.created_at,
             attempts=otp_model.attempts,
-            is_verified=otp_model.is_verified
+            is_verified=otp_model.is_verified,
+            is_expired =otp_model.is_expired
         )
         
     async def get_by_email(self, email: str) -> Optional[OTP]:
@@ -41,7 +42,8 @@ class SQLAlchemyOTPRepository(OTPRepository):
                 code=otp_model.code,
                 created_at=otp_model.created_at,
                 attempts=otp_model.attempts,
-                is_verified=otp_model.is_verified
+                is_verified=otp_model.is_verified,
+                is_expired = otp_model.is_expired
             )
         return None    
     async def delete_existing_otps(self, email: str) -> None:

@@ -9,6 +9,7 @@ class OTP:
     created_at: datetime
     attempts: int = 0
     is_verified: bool = False
+    is_expired:bool =False
     
     
 @property

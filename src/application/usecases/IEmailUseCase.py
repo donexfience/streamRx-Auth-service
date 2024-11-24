@@ -5,6 +5,7 @@ import aiosmtplib
 import os
 from typing import Optional
 
+load_dotenv()
 class EmailServiceUseCase:
     def __init__(
         self,
