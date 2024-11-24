@@ -5,6 +5,9 @@ from src.core.config import settings
 from src.infrastructure.database.connection import init_db
 from src.presentation.api.routes.health import router as health_router
 from src.presentation.graphql.schema import graphql_app
+from src.presentation.api.middleware.auth_middleware import AuthMiddleware
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -35,6 +38,10 @@ app.add_middleware(
 # Include routers
 app.include_router(health_router, prefix="/api/v1", tags=["health"])
 app.include_router(graphql_app, prefix="/graphql")
+# Include Middleware
+
+# main.py
+app.add_middleware(AuthMiddleware())
 
 if __name__ == "__main__":
     import uvicorn
