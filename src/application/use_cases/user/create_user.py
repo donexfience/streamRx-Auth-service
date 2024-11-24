@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.application.interfaces.repositories import UserRepository
-from src.core.security import get_password_hash
-from application.services.token_service import TokenService
+from src.application.services.password_service import PasswordService
+from src.application.services.token_service import TokenService
 @dataclass
 class CreateUserInput:
     email: str
@@ -13,7 +13,8 @@ class CreateUserInput:
 class CreateUserUseCase:
     def __init__(self, user_repository: UserRepository):
         self.user_repository = user_repository
-        self.token_service = TokenService
+        self.token_service = TokenService()
+        self.password_service = PasswordService()
 
     async def execute(self, input_data: CreateUserInput) -> User:
         # Check if user already exists
@@ -24,7 +25,7 @@ class CreateUserUseCase:
         # Create new user
         user = User(
             email=Email(input_data.email),
-            hashed_password=get_password_hash(input_data.password),
+            hashed_password=self.password_service.get_password_hash(input_data.password),
             is_superuser=input_data.is_superuser
         )
         
