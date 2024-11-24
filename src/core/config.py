@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 5
     REFRESH_TOKEN_EXPIRE_DAYS: int =7
     JWT_ALGORITHM: str = "HS256"
+    REDIS_HOST: str
+    REDIS_PORT: int
+    REDIS_DB: int
+    REDIS_DECODE_RESPONSES: bool
 
     # CORS
     ALLOWED_ORIGINS: List[str] = [
