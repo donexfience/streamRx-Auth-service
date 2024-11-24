@@ -1,31 +1,38 @@
 from typing import List, Optional, Any
 from contextlib import asynccontextmanager
+from redis import Redis
 import strawberry
 from strawberry.fastapi import BaseContext, GraphQLRouter
 from fastapi import Request
 from sqlalchemy.ext.asyncio import async_sessionmaker,AsyncSession
 from src.infrastructure.database.connection import async_session
 from src.infrastructure.repositories.user_repository import SQLAlchemyUserRepository
-from src.application.use_cases.user.create_user import CreateUserUseCase, CreateUserInput
+from src.infrastructure.repositories.otp_repository import SQLAlchemyOTPRepository
+from src.application.usecases.IEmailUseCase import EmailServiceUseCase
+from src.core.config import settings
+from src.application.usecases.IUserRegister import UserRegistrationServiceUseCase
+from src.infrastructure.config.reddis_config import RedisConfig
 
 class CustomContext(BaseContext):
     def __init__(self, request: Request):
         super().__init__()
         self.request: Request = request
         self.session: Optional[AsyncSession] = None
-
+        self.redis_client: Optional[Redis] = None
+        
     async def __aenter__(self):
-        # Initialize the session
-        self.session = async_session()  # Ensure async_session is defined
-        print(f"Session initialized in __aenter__: {self.session}")
+        self.session = async_session()
         await self.session.__aenter__()
+        # Initialize Redis client
+        redis_config = RedisConfig()
+        self.redis_client = redis_config.get_client()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        # Clean up the session
-        print("Closing session in __aexit__")
         if self.session:
             await self.session.__aexit__(exc_type, exc_val, exc_tb)
+        if self.redis_client:
+            self.redis_client.close()
 
 @strawberry.type
 class User:
@@ -39,6 +46,9 @@ class UserCreateInput:
     email: str
     password: str
     is_superuser: Optional[bool] = False
+@strawberry.type
+class RegistrationResponse:
+    message: str
 
 @strawberry.type
 class Query:
@@ -79,44 +89,88 @@ class Query:
             is_active=user.is_active,
             is_superuser=user.is_superuser
         )
-
+        
+        
 @strawberry.type
 class Mutation:
     @strawberry.mutation
-    async def create_user(
+    async def initiate_registration(
         self,
         info,
         input: UserCreateInput,
-    ) -> User:
+    ) -> RegistrationResponse:
         context: CustomContext = info.context
-        print("context got in the creation mutation",context,context.session)
-        repository = SQLAlchemyUserRepository(context.session)
-        use_case = CreateUserUseCase(repository)
-        if repository is None:
-            raise ValueError("Repository not initialized properly.")
-        else:
-            print('repostiory got')
-        use_case = CreateUserUseCase(repository)
         
-        # Ensure use_case is initialized
-        if use_case is None:
-            raise ValueError("CreateUserUseCase not initialized properly.")
-        else:
-            print("user case is got")
-        print(input.email,input.password,input.is_superuser,"data is coming from the server and getting in the mutation")
-        user = await use_case.execute(CreateUserInput(
+        if not context.redis_client:
+            raise ValueError("Redis client not initialized")
+
+        registration_service = UserRegistrationServiceUseCase(
+            user_repository=SQLAlchemyUserRepository(context.session),
+            otp_repository=SQLAlchemyOTPRepository(context.session),
+            email_service=EmailServiceUseCase(),
+            redis_client=context.redis_client
+        )
+        
+        result = await registration_service.initiate_registration(
             email=input.email,
             password=input.password,
             is_superuser=input.is_superuser
-        ))
-        print(user,"user created in the schema")
+        )
+        
+        return RegistrationResponse(message=result["message"])
+
+    @strawberry.mutation
+    async def verify_registration(
+        self,
+        info,
+        email: str,
+        otp: str,
+    ) -> User:
+        context: CustomContext = info.context
+        
+        if not context.redis_client:
+            raise ValueError("Redis client not initialized")
+
+        registration_service = UserRegistrationServiceUseCase(
+            user_repository=SQLAlchemyUserRepository(context.session),
+            otp_repository=SQLAlchemyOTPRepository(context.session),
+            email_service=EmailServiceUseCase(),
+            redis_client=context.redis_client
+        )
+        
+        user, access_token = await registration_service.verify_otp(email, otp)
+        
+        # Set access token in cookie
+        context.request.cookies["access_token"] = access_token
+        
         return User(
             id=user.id,
             email=str(user.email),
             is_active=user.is_active,
             is_superuser=user.is_superuser
         )
+
+    @strawberry.mutation
+    async def resend_otp(
+        self,
+        info,
+        email: str,
+    ) -> RegistrationResponse:
+        context: CustomContext = info.context
         
+        if not context.redis_client:
+            raise ValueError("Redis client not initialized")
+
+        registration_service = UserRegistrationServiceUseCase(
+            user_repository=SQLAlchemyUserRepository(context.session),
+            otp_repository=SQLAlchemyOTPRepository(context.session),
+            email_service=EmailServiceUseCase(),
+            redis_client=context.redis_client
+        )
+        
+        result = await registration_service.resend_otp(email)
+        return RegistrationResponse(message=result["message"])
+
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation

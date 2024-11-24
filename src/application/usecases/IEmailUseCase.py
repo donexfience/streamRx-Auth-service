@@ -3,7 +3,7 @@ from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 from typing import Optional
 
-class EmailService:
+class EmailServiceUseCase:
     def __init__(
         self,
         smtp_host: str = "smtp.gmail.com",

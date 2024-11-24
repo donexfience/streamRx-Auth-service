@@ -1,6 +1,6 @@
 from passlib.context import CryptContext
 
-class PasswordService:
+class PasswordServiceUseCase:
     def __init__(self):
         # Initialize the password context with hashing algorithm
         self.pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

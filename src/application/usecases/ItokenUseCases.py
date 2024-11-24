@@ -6,7 +6,7 @@ from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from src.core.config import settings
 
-class TokenService:
+class TokenServiceUseCase:
     @staticmethod
     def create_access_token(data: dict) -> str:
         """Create access token with 2 minutes expiration"""
@@ -52,7 +52,7 @@ class TokenService:
             )
         
         try:
-            payload = TokenService.decode_token(access_token)
+            payload = TokenServiceUseCase.decode_token(access_token)
             if payload.get("token_type") != "access":
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

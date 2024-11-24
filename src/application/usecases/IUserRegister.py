@@ -6,24 +6,24 @@ from redis import Redis
 from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.infrastructure.repositories.otp_repository import SQLAlchemyOTPRepository
-from src.application.services.email_service import EmailService
-from src.application.services.token_service import TokenService
-from src.application.services.password_service import PasswordService
+from src.application.usecases.IEmailUseCase import EmailServiceUseCase
+from src.application.usecases.ItokenUseCases import TokenServiceUseCase
+from src.application.services.password_service import PasswordServiceUseCase
 
-class RegistrationService:
+class UserRegistrationServiceUseCase:
     def __init__(
         self,
         user_repository,
         otp_repository: SQLAlchemyOTPRepository,
-        email_service: EmailService,
+        email_service: EmailServiceUseCase,
         redis_client: Redis
     ):
         self.user_repository = user_repository
         self.otp_repository = otp_repository
         self.email_service = email_service
         self.redis_client = redis_client
-        self.token_service = TokenService()
-        self.password_service = PasswordService()
+        self.token_service = TokenServiceUseCase()
+        self.password_service = PasswordServiceUseCase()
         
     def generate_otp(self) -> str:
         return ''.join(random.choices(string.digits, k=6))
