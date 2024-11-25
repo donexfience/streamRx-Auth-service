@@ -12,6 +12,7 @@ from src.application.usecases.IEmailUseCase import EmailServiceUseCase
 from src.core.config import settings
 from src.application.usecases.IUserRegister import UserRegistrationServiceUseCase
 from src.infrastructure.config.reddis_config import RedisConfig
+from src.__lib.UserRole import UserRole 
 
 @strawberry.type
 class RegistrationStatus:
@@ -30,9 +31,12 @@ class RegistrationResponse:
 @strawberry.type
 class User:
     id: int
-    email: str
+    email: str  
     is_active: bool
     is_superuser: bool
+    bio: Optional[str] = None 
+    profile_image_url: Optional[str] = None  
+    role: str 
 
 @strawberry.type
 class VerificationResponse:
@@ -44,6 +48,8 @@ class UserCreateInput:
     email: str
     password: str
     is_superuser: Optional[bool] = False
+    bio: Optional[str] = None  # 
+    profile_image_url: Optional[str] = None 
 
 class CustomContext(BaseContext):
     def __init__(self, request: Request):
@@ -81,9 +87,12 @@ class Query:
         return [
             User(
                 id=user.id,
-                email=str(user.email),
+                email=str(user.email),  
                 is_active=user.is_active,
-                is_superuser=user.is_superuser
+                is_superuser=user.is_superuser,
+                bio=user.bio,
+                profile_image_url=user.profileImageURL,
+                role=user.role.value  
             )
             for user in users
         ]
@@ -140,7 +149,9 @@ class Mutation:
             result = await registration_service.initiate_registration(
                 email=input.email,
                 password=input.password,
-                is_superuser=input.is_superuser
+                role=UserRole.ADMIN if input.is_superuser else UserRole.VIEWER,  
+                bio=input.bio,
+                profile_image_url=input.profile_image_url
             )
             
             return RegistrationResponse(
@@ -202,7 +213,10 @@ class Mutation:
                     id=user.id,
                     email=str(user.email),
                     is_active=user.is_active,
-                    is_superuser=user.is_superuser
+                    is_superuser=user.is_admin,
+                    bio=user.bio,
+                    profile_image_url=user.profileImageURL,
+                    role=user.role.value
                 ),
                 access_token=access_token
             )
