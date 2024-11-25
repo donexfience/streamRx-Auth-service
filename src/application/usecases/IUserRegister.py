@@ -109,6 +109,7 @@ class UserRegistrationServiceUseCase:
 
         # Generate and store new OTP
         otp = self.generate_otp()
+        print(otp)
         await self.otp_repository.create(email, otp)
 
         # Cache registration data in Redis
@@ -170,14 +171,14 @@ class UserRegistrationServiceUseCase:
         await self.otp_repository.mark_as_verified(stored_otp.id)
     
         # Generate access token
-        access_token = self.token_service.create_access_token({"sub": str(created_user.id)})
-        
+        access_token = self.token_service.create_access_token({"access_token": str(created_user.id)})
+        refresh_token = self.token_service.create_refresh_token({"refresh_token":str(created_user.id)})
     
         # Clean up OTP and Redis cache
         await self.otp_repository.delete_otp_by_id(stored_otp.id)
         await self._cleanup_registration(email)
     
-        return created_user, access_token
+        return created_user, access_token ,refresh_token
 
     async def resend_otp(self, email: str) -> Dict:
         # Check registration status

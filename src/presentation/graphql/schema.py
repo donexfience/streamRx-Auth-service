@@ -13,13 +13,14 @@ from src.core.config import settings
 from src.application.usecases.IUserRegister import UserRegistrationServiceUseCase
 from src.infrastructure.config.reddis_config import RedisConfig
 from src.__lib.UserRole import UserRole
+from src.application.usecases.IloginUseCase import LoginUseCase
+from typing import Dict
 import logging
 
 # Setting up logger
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-# Custom exception for Registration
 class RegistrationError(Exception):
     pass
 
@@ -61,9 +62,14 @@ class User:
     role: str
 
 @strawberry.type
+class Token:
+    access_token :str
+    refresh_token :str
+
+@strawberry.type
 class VerificationResponse:
     user: User
-    access_token: str
+    token: Optional[Token] 
 
 @strawberry.input
 class UserCreateInput:
@@ -71,6 +77,18 @@ class UserCreateInput:
     password: str
     bio: Optional[str] = None
     profile_image_url: Optional[str] = None
+    
+@strawberry.input
+class LoginInput:
+    email:str
+    password:str
+
+@strawberry.type
+class LoginResponse:
+    success:bool
+    message:str
+    user: Optional["User"]  
+    token: Optional[Token] 
 
 class CustomContext(BaseContext):
     def __init__(self, request: Request):
@@ -195,7 +213,8 @@ class Mutation:
 
                 logger.info(f"Verifying OTP for {email}")
 
-                user, access_token = await registration_service.verify_otp(email, otp)
+                user, access_token ,refresh_token = await registration_service.verify_otp(email, otp)
+                print(refresh_token,"token-refresh")
 
                 logger.info(f"OTP verified for {email}, issuing access token")
 
@@ -205,12 +224,19 @@ class Mutation:
                     value=f"Bearer {access_token}",
                     httponly=True,
                     max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
-                    path="/",
                 )
 
-                # Set the response in the context
+                context.response.set_cookie(
+                    key="refresh_token",
+                    value=f"Bearer {refresh_token}",
+                    httponly=True,
+                    max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  # Days to seconds
+                )   
+                
                 info.context.response = context.response
-
+                tokens = Token(access_token=access_token,refresh_token=refresh_token)
+                logger.debug(f"Cookies set in response: {context.response.cookies}")
+                print(f"accesstoken{access_token},refreshtoken{refresh_token}")
                 return VerificationResponse(
                     user=User(
                         id=user.id,
@@ -221,8 +247,9 @@ class Mutation:
                         role=user.role.value,
                         is_verified=user.is_verified
                     ),
-                    access_token=access_token,
+                    token=tokens
                 )
+            
         except RegistrationError as e:
             logger.error(f"OTP verification failed for {email}: {str(e)}")
             raise RegistrationError(f"OTP verification failed: {str(e)}")
@@ -264,7 +291,55 @@ class Mutation:
                     message=str(e),
                 ),
             )
-
+        
+    @strawberry.mutation
+    async def login(self, info, input: LoginInput) -> LoginResponse:
+        context: CustomContext = info.context
+        async with get_redis_client() as redis_client, get_session() as session:
+            user_repository = SQLAlchemyUserRepository(session)
+            login_use_case = LoginUseCase(user_repository=user_repository)
+        
+            result = await login_use_case.Login(input.email, input.password)
+        
+            if not result["success"]:
+                return LoginResponse(
+                success=False,
+                message=result["message"],
+                user=None,
+                token=None, 
+                )
+        
+        user_data = result["user"]
+        tokens = result["tokens"]
+        access_token = tokens["access_token"]
+        refresh_token = tokens["refresh_token"]
+    
+        context.response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+        context.response.set_cookie(
+            key="refresh_token",
+            value=f"Bearer {refresh_token}",
+            httponly=True,
+            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
+    
+        tokens = Token(access_token=access_token, refresh_token=refresh_token)
+        return LoginResponse(
+            success=True,
+            message="Login successful",
+            user=User(
+                id=user_data["id"],
+                email=user_data["email"],
+                role=user_data["role"],
+                is_verified=user_data["is_verified"],
+                is_active=user_data["is_active"] 
+            ),
+            token=tokens, 
+        )
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:
