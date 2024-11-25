@@ -27,6 +27,7 @@ class UserRegistrationServiceUseCase:
         self.password_service = PasswordServiceUseCase()
         
     def generate_otp(self) -> str:
+        """Generate a 6-digit OTP"""
         return ''.join(random.choices(string.digits, k=6))
 
     async def get_registration_status(self, email: str) -> Dict:
@@ -39,7 +40,7 @@ class UserRegistrationServiceUseCase:
                 "status": "no_registration",
                 "message": "No ongoing registration found"
             }
-            
+        
         stored_otp = await self.otp_repository.get_by_email(email)
         if not stored_otp:
             self.redis_client.delete(registration_key)
@@ -48,8 +49,8 @@ class UserRegistrationServiceUseCase:
                 "message": "No ongoing registration found"
             }
 
-        # Calculate time remaining
-        expiry_time = stored_otp.created_at + timedelta(minutes=2)
+        # Calculate time remaining for OTP
+        expiry_time = stored_otp.created_at + timedelta(minutes=5)  # 5 minutes expiry time
         time_remaining = int((expiry_time - datetime.utcnow()).total_seconds())
         
         if time_remaining <= 0 or stored_otp.is_expired:
@@ -88,7 +89,7 @@ class UserRegistrationServiceUseCase:
         if stored_otp:
             await self.otp_repository.delete_otp_by_id(stored_otp.id)
 
-    async def initiate_registration(self, email: str, password: str, role: UserRole, bio: str = "", profile_image_url: str = "") -> Dict:
+    async def initiate_registration(self, email: str, password: str, role: UserRole, is_active: bool = True, bio: str = "", profile_image_url: str = "") -> Dict:
         # Check if there's an ongoing valid registration
         status = await self.get_registration_status(email)
         
@@ -113,14 +114,16 @@ class UserRegistrationServiceUseCase:
         # Cache registration data in Redis
         registration_data = {
             "email": email,
-            "password": self.password_service.get_password_hash(password),  # Store hashed password
+            "password": self.password_service.get_password_hash(password),
             "role": role.value,
             "bio": bio,
             "profileImageURL": profile_image_url,
             "initiated_at": datetime.utcnow().isoformat()
         }
-        self.redis_client.hmset(f"registration:{email}", registration_data)
-        self.redis_client.expire(f"registration:{email}", 1)  # 1 minutes
+        
+        # Store registration data with an expiry of 5 minutes in Redis
+        self.redis_client.hset(f"registration:{email}", mapping=registration_data)
+        self.redis_client.expire(f"registration:{email}", 5 * 60)  # 5 minutes expiration time
 
         # Send verification email
         await self.email_service.send_verification_email(email, otp)
@@ -132,7 +135,7 @@ class UserRegistrationServiceUseCase:
         }
         
     async def verify_otp(self, email: str, otp: str) -> Tuple[User, str]:
-    # Check registration status
+        # Check registration status
         status = await self.get_registration_status(email)
         if status["status"] != "pending_verification":
             raise ValueError(status["message"])
@@ -143,22 +146,24 @@ class UserRegistrationServiceUseCase:
             await self.otp_repository.update_attempts(stored_otp.id)
             raise ValueError("Invalid OTP")
 
-    # Get cached registration data from Redis
+        # Get cached registration data from Redis
         registration_key = f"registration:{email}"
         cached_data = self.redis_client.hgetall(registration_key)
     
         if not cached_data:
             raise ValueError("Registration session expired")
-
-    # Create user
+       
+        # Create user
         user = User(
-            email=Email(cached_data[b"email"].decode()),
-            hashed_password=cached_data[b"password"].decode(),  
-            role=UserRole(cached_data[b"role"].decode()),
-            bio=cached_data[b"bio"].decode() or None,
-            profileImageURL=cached_data[b"profileImageURL"].decode() or None,
-         )
-    
+        email=Email(cached_data["email"]),
+        hashed_password=cached_data["password"],  
+        role=UserRole(cached_data["role"]),
+        bio=cached_data.get("bio") or None,
+        is_verified=True,
+        profileImageURL=cached_data.get("profileImageURL") or None,
+        is_active=True
+        
+)
         created_user = await self.user_repository.create(user)
     
         # Mark OTP as verified
@@ -166,21 +171,22 @@ class UserRegistrationServiceUseCase:
     
         # Generate access token
         access_token = self.token_service.create_access_token({"sub": str(created_user.id)})
+        
     
+        # Clean up OTP and Redis cache
         await self.otp_repository.delete_otp_by_id(stored_otp.id)
-    
-        # Clean up Redis cache
         await self._cleanup_registration(email)
     
         return created_user, access_token
+
     async def resend_otp(self, email: str) -> Dict:
-    # Check registration status
+        # Check registration status
         status = await self.get_registration_status(email)
         
         if status["status"] != "pending_verification":
             raise ValueError(status["message"])
 
-    # Generate and store new OTP
+        # Generate and store new OTP
         new_otp = self.generate_otp()
         stored_otp = await self.otp_repository.get_by_email(email)
         

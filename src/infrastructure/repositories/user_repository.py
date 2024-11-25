@@ -16,7 +16,6 @@ class SQLAlchemyUserRepository(UserRepository):
             email=Email(model.email),
             hashed_password=model.hashed_password,
             is_active=model.is_active,
-            is_superuser=model.is_superuser,
             created_at=model.created_at,
             updated_at=model.updated_at
         )
@@ -27,7 +26,6 @@ class SQLAlchemyUserRepository(UserRepository):
             email=str(entity.email),
             hashed_password=entity.hashed_password,
             is_active=entity.is_active,
-            is_superuser=entity.is_superuser
         )
 
     async def create(self, user: User) -> User:

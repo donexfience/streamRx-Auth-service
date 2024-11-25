@@ -6,14 +6,13 @@ from src.__lib.UserRole import UserRole
 
 @dataclass
 class User:
-    email: Email  # Email as a value object
-    hashed_password: str  # Hashed password for security
-    
+    email: Email 
+    hashed_password: str  
     id: Optional[int] = None  
-    profileImageURL: Optional[str] = None  
+    profileImageURL: Optional[str] = None
+    is_verified:bool = False  
     bio: Optional[str] = None  
-    role: UserRole = UserRole.VIEWER  
-    
+    role: UserRole = UserRole.VIEWER 
     is_active: bool = True  
     created_at: datetime = field(default_factory=datetime.utcnow)  
     updated_at: datetime = field(default_factory=datetime.utcnow)  

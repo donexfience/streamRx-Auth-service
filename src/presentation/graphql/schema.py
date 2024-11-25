@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from redis import Redis
 import strawberry
 from strawberry.fastapi import BaseContext, GraphQLRouter
-from fastapi import Request, Response
+from fastapi import Request, Response, Depends
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from src.infrastructure.database.connection import async_session
 from src.infrastructure.repositories.user_repository import SQLAlchemyUserRepository
@@ -12,7 +12,29 @@ from src.application.usecases.IEmailUseCase import EmailServiceUseCase
 from src.core.config import settings
 from src.application.usecases.IUserRegister import UserRegistrationServiceUseCase
 from src.infrastructure.config.reddis_config import RedisConfig
-from src.__lib.UserRole import UserRole 
+from src.__lib.UserRole import UserRole
+import logging
+
+# Setting up logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Custom exception for Registration
+class RegistrationError(Exception):
+    pass
+
+# Context manager for session and Redis client
+@asynccontextmanager
+async def get_session() -> AsyncSession:
+    async with async_session() as session:
+        yield session
+
+@asynccontextmanager
+async def get_redis_client() -> Redis:
+    redis_config = RedisConfig()
+    redis_client = redis_config.get_client()
+    yield redis_client
+    redis_client.close()
 
 @strawberry.type
 class RegistrationStatus:
@@ -31,12 +53,12 @@ class RegistrationResponse:
 @strawberry.type
 class User:
     id: int
-    email: str  
+    email: str
     is_active: bool
-    is_superuser: bool
-    bio: Optional[str] = None 
-    profile_image_url: Optional[str] = None  
-    role: str 
+    is_verified: bool
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    role: str
 
 @strawberry.type
 class VerificationResponse:
@@ -47,9 +69,8 @@ class VerificationResponse:
 class UserCreateInput:
     email: str
     password: str
-    is_superuser: Optional[bool] = False
-    bio: Optional[str] = None  # 
-    profile_image_url: Optional[str] = None 
+    bio: Optional[str] = None
+    profile_image_url: Optional[str] = None
 
 class CustomContext(BaseContext):
     def __init__(self, request: Request):
@@ -58,209 +79,190 @@ class CustomContext(BaseContext):
         self.session: Optional[AsyncSession] = None
         self.redis_client: Optional[Redis] = None
         self.response: Response = Response()
-        
+
     async def __aenter__(self):
-        self.session = async_session()
-        await self.session.__aenter__()
-        redis_config = RedisConfig()
-        self.redis_client = redis_config.get_client()
-        return self
+        async with get_session() as session:
+            self.session = session
+            async with get_redis_client() as redis_client:
+                self.redis_client = redis_client
+                return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.__aexit__(exc_type, exc_val, exc_tb)
-        if self.redis_client:
-            self.redis_client.close()
+        self.session = None
+        self.redis_client = None
 
 @strawberry.type
 class Query:
     @strawberry.field
-    async def users(
-        self,
-        info,
-        skip: int = 0,
-        limit: int = 100,
-    ) -> List[User]:
+    async def users(self, info, skip: int = 0, limit: int = 100) -> List[User]:
         context: CustomContext = info.context
-        repository = SQLAlchemyUserRepository(context.session)
-        users = await repository.list_users(skip=skip, limit=limit)
-        return [
-            User(
-                id=user.id,
-                email=str(user.email),  
-                is_active=user.is_active,
-                is_superuser=user.is_superuser,
-                bio=user.bio,
-                profile_image_url=user.profileImageURL,
-                role=user.role.value  
-            )
-            for user in users
-        ]
+        async with get_session() as session:
+            repository = SQLAlchemyUserRepository(session)
+            users = await repository.list_users(skip=skip, limit=limit)
+            return [
+                User(
+                    id=user.id,
+                    email=str(user.email),
+                    is_active=user.is_active,
+                    bio=user.bio,
+                    profile_image_url=user.profileImageURL,
+                    role=user.role.value,
+                )
+                for user in users
+            ]
 
     @strawberry.field
-    async def registration_status(
-        self,
-        info,
-        email: str,
-    ) -> RegistrationStatus:
+    async def registration_status(self, info, email: str) -> RegistrationStatus:
         context: CustomContext = info.context
-        
-        if not context.redis_client:
-            raise ValueError("Redis client not initialized")
-
-        registration_service = UserRegistrationServiceUseCase(
-            user_repository=SQLAlchemyUserRepository(context.session),
-            otp_repository=SQLAlchemyOTPRepository(context.session),
-            email_service=EmailServiceUseCase(),
-            redis_client=context.redis_client
-        )
-        
-        status = await registration_service.get_registration_status(email)
-        return RegistrationStatus(
-            status=status["status"],
-            message=status["message"],
-            email=status.get("email"),
-            created_at=status.get("created_at"),
-            attempts_remaining=status.get("attempts_remaining"),
-            expires_in=status.get("expires_in")
-        )
+        async with get_redis_client() as redis_client:
+            registration_service = UserRegistrationServiceUseCase(
+                user_repository=SQLAlchemyUserRepository(context.session),
+                otp_repository=SQLAlchemyOTPRepository(context.session),
+                email_service=EmailServiceUseCase(),
+                redis_client=redis_client,
+            )
+            status = await registration_service.get_registration_status(email)
+            return RegistrationStatus(
+                status=status["status"],
+                message=status["message"],
+                email=status.get("email"),
+                created_at=status.get("created_at"),
+                attempts_remaining=status.get("attempts_remaining"),
+                expires_in=status.get("expires_in"),
+            )
 
 @strawberry.type
 class Mutation:
     @strawberry.mutation
-    async def initiate_registration(
-        self,
-        info,
-        input: UserCreateInput,
-    ) -> RegistrationResponse:
+    async def initiate_registration(self, info, input: UserCreateInput) -> RegistrationResponse:
         context: CustomContext = info.context
-        
-        if not context.redis_client:
-            raise ValueError("Redis client not initialized")
 
-        registration_service = UserRegistrationServiceUseCase(
-            user_repository=SQLAlchemyUserRepository(context.session),
-            otp_repository=SQLAlchemyOTPRepository(context.session),
-            email_service=EmailServiceUseCase(),
-            redis_client=context.redis_client
-        )
-        
         try:
-            result = await registration_service.initiate_registration(
-                email=input.email,
-                password=input.password,
-                role=UserRole.ADMIN if input.is_superuser else UserRole.VIEWER,  
-                bio=input.bio,
-                profile_image_url=input.profile_image_url
-            )
-            
-            return RegistrationResponse(
-                message=result["message"],
-                status=RegistrationStatus(
-                    status=result["status"]["status"],
-                    message=result["status"]["message"],
-                    email=result["status"].get("email"),
-                    created_at=result["status"].get("created_at"),
-                    attempts_remaining=result["status"].get("attempts_remaining"),
-                    expires_in=result["status"].get("expires_in")
+            async with get_redis_client() as redis_client, get_session() as session:
+                registration_service = UserRegistrationServiceUseCase(
+                    user_repository=SQLAlchemyUserRepository(session),
+                    otp_repository=SQLAlchemyOTPRepository(session),
+                    email_service=EmailServiceUseCase(),
+                    redis_client=redis_client,
                 )
-            )
-        except ValueError as e:
+
+                logger.info(f"Initiating registration for {input.email}")
+
+                result = await registration_service.initiate_registration(
+                    email=input.email,
+                    password=input.password,
+                    role=UserRole.VIEWER,
+                    is_active=True,
+                    bio=input.bio,
+                    profile_image_url=input.profile_image_url,
+                )
+
+                logger.info(f"Registration result: {result}")
+
+                return RegistrationResponse(
+                    message=result["message"],
+                    status=RegistrationStatus(
+                        status=result["status"]["status"],
+                        message=result["status"]["message"],
+                        email=result["status"].get("email"),
+                        created_at=result["status"].get("created_at"),
+                        attempts_remaining=result["status"].get("attempts_remaining"),
+                        expires_in=result["status"].get("expires_in"),
+                    ),
+                )
+        except RegistrationError as e:
+            logger.error(f"Registration error for {input.email}: {str(e)}")
             return RegistrationResponse(
                 message=str(e),
                 status=RegistrationStatus(
                     status="error",
-                    message=str(e)
-                )
-            )
-
-    @strawberry.mutation
-    async def verify_registration(
-        self,
-        info,
-        email: str,
-        otp: str,
-    ) -> VerificationResponse:
-        context: CustomContext = info.context
-        
-        if not context.redis_client:
-            raise ValueError("Redis client not initialized")
-
-        registration_service = UserRegistrationServiceUseCase(
-            user_repository=SQLAlchemyUserRepository(context.session),
-            otp_repository=SQLAlchemyOTPRepository(context.session),
-            email_service=EmailServiceUseCase(),
-            redis_client=context.redis_client
-        )
-        
-        try:
-            user, access_token = await registration_service.verify_otp(email, otp)
-            
-            # Set the token in cookies
-            context.response.set_cookie(
-                key="access_token",
-                value=f"Bearer {access_token}",
-                httponly=True,
-                max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
-                path="/"
-            )
-            
-            # Set the response in the context
-            info.context.response = context.response
-            
-            return VerificationResponse(
-                user=User(
-                    id=user.id,
-                    email=str(user.email),
-                    is_active=user.is_active,
-                    is_superuser=user.is_admin,
-                    bio=user.bio,
-                    profile_image_url=user.profileImageURL,
-                    role=user.role.value
+                    message=str(e),
                 ),
-                access_token=access_token
             )
-        except ValueError as e:
-            raise ValueError(str(e))
 
     @strawberry.mutation
-    async def resend_otp(
-        self,
-        info,
-        email: str,
-    ) -> RegistrationResponse:
+    async def verify_registration(self, info, email: str, otp: str) -> VerificationResponse:
         context: CustomContext = info.context
-        
-        if not context.redis_client:
-            raise ValueError("Redis client not initialized")
 
-        registration_service = UserRegistrationServiceUseCase(
-            user_repository=SQLAlchemyUserRepository(context.session),
-            otp_repository=SQLAlchemyOTPRepository(context.session),
-            email_service=EmailServiceUseCase(),
-            redis_client=context.redis_client
-        )
-        
         try:
-            result = await registration_service.resend_otp(email)
-            return RegistrationResponse(
-                message=result["message"],
-                status=RegistrationStatus(
-                    status=result["status"]["status"],
-                    message=result["status"]["message"],
-                    email=result["status"].get("email"),
-                    created_at=result["status"].get("created_at"),
-                    attempts_remaining=result["status"].get("attempts_remaining"),
-                    expires_in=result["status"].get("expires_in")
+            async with get_redis_client() as redis_client, get_session() as session:
+                registration_service = UserRegistrationServiceUseCase(
+                    user_repository=SQLAlchemyUserRepository(session),
+                    otp_repository=SQLAlchemyOTPRepository(session),
+                    email_service=EmailServiceUseCase(),
+                    redis_client=redis_client,
                 )
-            )
-        except ValueError as e:
+
+                logger.info(f"Verifying OTP for {email}")
+
+                user, access_token = await registration_service.verify_otp(email, otp)
+
+                logger.info(f"OTP verified for {email}, issuing access token")
+
+                # Set the token in cookies
+                context.response.set_cookie(
+                    key="access_token",
+                    value=f"Bearer {access_token}",
+                    httponly=True,
+                    max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert minutes to seconds
+                    path="/",
+                )
+
+                # Set the response in the context
+                info.context.response = context.response
+
+                return VerificationResponse(
+                    user=User(
+                        id=user.id,
+                        email=str(user.email),
+                        is_active=user.is_active,
+                        bio=user.bio,
+                        profile_image_url=user.profileImageURL,
+                        role=user.role.value,
+                        is_verified=user.is_verified
+                    ),
+                    access_token=access_token,
+                )
+        except RegistrationError as e:
+            logger.error(f"OTP verification failed for {email}: {str(e)}")
+            raise RegistrationError(f"OTP verification failed: {str(e)}")
+
+    @strawberry.mutation
+    async def resend_otp(self, info, email: str) -> RegistrationResponse:
+        context: CustomContext = info.context
+
+        try:
+            async with get_redis_client() as redis_client, get_session() as session:
+                registration_service = UserRegistrationServiceUseCase(
+                    user_repository=SQLAlchemyUserRepository(session),
+                    otp_repository=SQLAlchemyOTPRepository(session),
+                    email_service=EmailServiceUseCase(),
+                    redis_client=redis_client,
+                )
+
+                logger.info(f"Resending OTP to {email}")
+
+                result = await registration_service.resend_otp(email)
+
+                return RegistrationResponse(
+                    message=result["message"],
+                    status=RegistrationStatus(
+                        status=result["status"]["status"],
+                        message=result["status"]["message"],
+                        email=result["status"].get("email"),
+                        created_at=result["status"].get("created_at"),
+                        attempts_remaining=result["status"].get("attempts_remaining"),
+                        expires_in=result["status"].get("expires_in"),
+                    ),
+                )
+        except RegistrationError as e:
+            logger.error(f"Resending OTP failed for {email}: {str(e)}")
             return RegistrationResponse(
                 message=str(e),
                 status=RegistrationStatus(
                     status="error",
-                    message=str(e)
-                )
+                    message=str(e),
+                ),
             )
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
@@ -276,8 +278,4 @@ async def get_context_with_response(request: Request, response: Response) -> Cus
     await context.__aenter__()
     return context
 
-graphql_app = GraphQLRouter(
-    schema,
-    context_getter=get_context_with_response,
-    graphiql=True
-)
+graphql_app = GraphQLRouter(schema, context_getter=get_context_with_response)
