@@ -60,7 +60,10 @@ class SQLAlchemyOTPRepository(OTPRepository):
         if otp_model:
             otp_model.attempts += 1
             await self.session.commit()
-
+    async def delete_otp_by_id(self,otp_id:int)->None:
+        await self.session.execute(delete(OTPModel).where(OTPModel.id==otp_id))
+        await self.session.commit()
+        
     async def mark_as_verified(self, otp_id: int) -> None:
         result = await self.session.execute(
             select(OTPModel).where(OTPModel.id == otp_id)
