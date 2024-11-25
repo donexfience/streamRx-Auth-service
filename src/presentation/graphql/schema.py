@@ -16,6 +16,9 @@ from src.__lib.UserRole import UserRole
 from src.application.usecases.IloginUseCase import LoginUseCase
 from typing import Dict
 import logging
+from src.infrastructure.repositories.forgetPasswordTokenRepository import ForgotPasswordTokenRepository
+from src.application.usecases.IForgetPasswordUsecase import ForgotPasswordUseCase
+
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -36,6 +39,20 @@ async def get_redis_client() -> Redis:
     redis_client = redis_config.get_client()
     yield redis_client
     redis_client.close()
+
+@strawberry.type
+class ForgotPasswordResponse:
+    message: str
+    success: bool
+    reset_link: Optional[str] = None
+
+
+@strawberry.input
+class ResetPasswordInput:
+    token: str
+    new_password: str
+
+
 
 @strawberry.type
 class RegistrationStatus:
@@ -339,6 +356,34 @@ class Mutation:
             ),
             token=tokens, 
         )
+    @strawberry.mutation
+    async def forgot_password(self, email: str, info) -> ForgotPasswordResponse:
+        context: CustomContext = info.context
+        async with get_session() as session:
+            token_repository = ForgotPasswordTokenRepository(session)
+            email_service = EmailServiceUseCase()
+            user_repository = SQLAlchemyUserRepository(session)
+            user = await user_repository.get_by_email(email)
+
+        if not user:
+            return ForgotPasswordResponse(
+                success=False,
+                message="User not found"
+            )
+        forgot_password_use_case = ForgotPasswordUseCase(
+            token_repository=token_repository,
+            email_service=email_service,
+        )
+
+        # Generate the reset link and send email
+        reset_link = await forgot_password_use_case.request_password_reset(user_id=user.id, email=email)
+
+        return ForgotPasswordResponse(
+            success=True,
+            message="Reset link sent to your email",
+            reset_link=reset_link 
+        )
+
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:

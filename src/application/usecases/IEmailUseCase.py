@@ -59,3 +59,35 @@ class EmailServiceUseCase:
         except Exception as e:
             # In a production environment, if we wwant to log this error
             raise RuntimeError(f"Failed to send email: {str(e)}")
+    
+    async def send_password_change_email(self,to_email:str,reset_link:str) ->None:
+        message = MIMEMultipart()
+        message["From"] = self.username
+        message["To"] = to_email
+        message["Subject"] = "Forgot password link "
+        body = f"""
+        Hi,
+
+        We received a request to reset your password. Click the link below to reset it:
+
+        {reset_link}
+
+        This link is valid for 5 minutes. If you did not request a password reset, please ignore this email.
+
+        Best regards,
+        Your Team
+        """
+        message.attach(MIMEText(body, "plain"))
+        
+        
+        try:
+            async with aiosmtplib.SMTP(
+                hostname=self.smtp_host,
+                port=self.smtp_port,
+                use_tls=self.use_tls
+            ) as smtp:
+                await smtp.login(self.username, self.password)
+                await smtp.send_message(message)
+        except Exception as e:
+            # In a production environment, if we wwant to log this error
+            raise RuntimeError(f"Failed to send email: {str(e)}")
