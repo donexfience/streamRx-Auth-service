@@ -5,6 +5,7 @@ from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.application.interfaces.repositories import UserRepository
 from src.infrastructure.models.user import UserModel
+from datetime import datetime
 
 class SQLAlchemyUserRepository(UserRepository):
     def __init__(self, session: AsyncSession):
@@ -67,7 +68,9 @@ class SQLAlchemyUserRepository(UserRepository):
         user_model.email = str(user.email)
         user_model.hashed_password = user.hashed_password
         user_model.is_active = user.is_active
-        user_model.is_superuser = user.is_superuser
+        user_model.is_verified =user.is_verified
+        user_model.updated_at = datetime.utcnow()
+        user_model.profileImageURL =user.profileImageURL
 
         await self.session.commit()
         await self.session.refresh(user_model)

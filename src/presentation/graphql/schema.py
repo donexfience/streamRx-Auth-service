@@ -235,7 +235,6 @@ class Mutation:
                 
                 info.context.response = context.response
                 tokens = Token(access_token=access_token,refresh_token=refresh_token)
-                logger.debug(f"Cookies set in response: {context.response.cookies}")
                 print(f"accesstoken{access_token},refreshtoken{refresh_token}")
                 return VerificationResponse(
                     user=User(
@@ -290,7 +289,7 @@ class Mutation:
                     status="error",
                     message=str(e),
                 ),
-            )
+            )  
         
     @strawberry.mutation
     async def login(self, info, input: LoginInput) -> LoginResponse:
