@@ -6,10 +6,12 @@ from src.domain.value_objects.email import Email
 from src.application.interfaces.repositories import UserRepository
 from src.infrastructure.models.user import UserModel
 from datetime import datetime
+from src.application.services.password_service import PasswordServiceUseCase
 
 class SQLAlchemyUserRepository(UserRepository):
     def __init__(self, session: AsyncSession):
         self.session = session
+        self.passwordService = PasswordServiceUseCase()
 
     def _map_to_entity(self, model: UserModel) -> User:
         return User(
@@ -97,3 +99,13 @@ class SQLAlchemyUserRepository(UserRepository):
         )
         user_models = result.scalars().all()
         return [self._map_to_entity(user_model) for user_model in user_models]
+    
+    async def change_password(self, user_id:int, new_password:str)->None:
+       result = await self.session.execute(select(User).where(User.id ==user_id))
+       user = result.scalar_one_or_none()
+       if not user:
+            raise ValueError("User not found")
+       hashed_password = self.passwordService.get_password_hash(new_password)
+       user.hashed_password = hashed_password
+       await self.session.commit()
+    

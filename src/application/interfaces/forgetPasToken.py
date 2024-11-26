@@ -17,3 +17,13 @@ class IForgotPasswordTokenRepository(ABC):
     async def mark_token_used(self, token: str):
         """Marks a token as used."""
         pass
+
+    @abstractmethod
+    async def get_valid_token_for_user(self,user_id:int):
+        pass
+    
+    @abstractmethod
+    async def can_request_new_token(self,user_id:int)->bool:
+        pass
+    
+    

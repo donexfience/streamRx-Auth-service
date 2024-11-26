@@ -26,3 +26,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def list_users(self, skip: int = 0, limit: int = 100) -> List[User]:
         pass
+    
+    @abstractmethod
+    async def change_password(self,user_id:int,new_password:str)->None:
+        pass

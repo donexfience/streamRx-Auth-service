@@ -18,6 +18,8 @@ from typing import Dict
 import logging
 from src.infrastructure.repositories.forgetPasswordTokenRepository import ForgotPasswordTokenRepository
 from src.application.usecases.IForgetPasswordUsecase import ForgotPasswordUseCase
+from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCase
+from src.application.services.password_service import PasswordServiceUseCase
 
 
 # Setting up logger
@@ -87,6 +89,8 @@ class Token:
 class VerificationResponse:
     user: User
     token: Optional[Token] 
+
+
 
 @strawberry.input
 class UserCreateInput:
@@ -354,7 +358,7 @@ class Mutation:
                 is_verified=user_data["is_verified"],
                 is_active=user_data["is_active"] 
             ),
-            token=tokens, 
+            token=tokens 
         )
     @strawberry.mutation
     async def forgot_password(self, email: str, info) -> ForgotPasswordResponse:
@@ -364,26 +368,56 @@ class Mutation:
             email_service = EmailServiceUseCase()
             user_repository = SQLAlchemyUserRepository(session)
             user = await user_repository.get_by_email(email)
-
-        if not user:
-            return ForgotPasswordResponse(
+            if not user:
+                return ForgotPasswordResponse(
                 success=False,
                 message="User not found"
-            )
-        forgot_password_use_case = ForgotPasswordUseCase(
-            token_repository=token_repository,
-            email_service=email_service,
-        )
-
-        # Generate the reset link and send email
-        reset_link = await forgot_password_use_case.request_password_reset(user_id=user.id, email=email)
-
-        return ForgotPasswordResponse(
-            success=True,
-            message="Reset link sent to your email",
-            reset_link=reset_link 
-        )
-
+                )
+        
+            try:
+            
+                forgot_password_use_case = ForgotPasswordUseCase(
+                token_repository=token_repository,
+                email_service=email_service,
+                )
+                print("working try ")
+                print("user ",user)
+                # Generate the reset link and send email
+                reset_link = await forgot_password_use_case.request_password_reset(user_id=user.id, email=email)
+                print(reset_link,"reset link")
+                return ForgotPasswordResponse(
+                success=True,
+                message="Reset link sent to your email",
+                reset_link=reset_link 
+                )
+            except Exception as e:
+                return ForgotPasswordResponse(
+                    success=False,
+                    message=str(e)
+                )
+    @strawberry.mutation
+    async def change_password(self, info, email: str, new_password: str) -> ForgotPasswordResponse:
+        context: CustomContext = info.context
+        async with get_session() as session:
+            try:
+                user_repository = SQLAlchemyUserRepository(session)
+                forgotTokenRepository = ForgotPasswordTokenRepository(session)
+                password_service = PasswordServiceUseCase
+                change_password_use_case = ChangePasswordUseCase(user_repository, password_service, forgotTokenRepository)
+                user = await user_repository.get_by_email(email)
+                token = await forgotTokenRepository.get_valid_token_for_user(user.id)
+                message = await change_password_use_case.execute(user.id, token, new_password)
+                return ForgotPasswordResponse(
+                    success=True,
+                    message=message
+                )
+            except ValueError as e:
+                return ForgotPasswordResponse(
+                    success=False,
+                    message=str(e)
+                )
+            
+            
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:

@@ -65,20 +65,36 @@ class EmailServiceUseCase:
         message["From"] = self.username
         message["To"] = to_email
         message["Subject"] = "Forgot password link "
-        body = f"""
-        Hi,
-
-        We received a request to reset your password. Click the link below to reset it:
-
-        {reset_link}
-
-        This link is valid for 5 minutes. If you did not request a password reset, please ignore this email.
-
-        Best regards,
-        Your Team
+        print(reset_link,"reset ilnk got")
+        html_content = f"""
+        <html>
+        <body>
+            <div style="background-color: #f5f5f5; padding: 20px;">
+                <div style="background-color: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                    <div style="text-align: center;">
+                        <img src="https://via.placeholder.com/150" alt="Logo" style="max-width: 150px;">
+                        <h2 style="color: #333;">Reset your password</h2>
+                    </div>
+                    <p>We've got a request from you to reset the password for your account. Please click on the button below to get a new password.</p>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <a href="{reset_link}" style="display: inline-block; background-color: #007bff; color: white; text-decoration: none; padding: 10px 20px; border-radius: 5px;">Reset my password</a>
+                    </div>
+                    <p>Questions? Please let us know if there's anything we can help you with by replying to this email or by emailing <a href="mailto:help@company.com">help@company.com</a>.</p>
+                    <p>If you didn't request a password reset, we recommend you get in touch with our support team and secure your account.</p>
+                    <p>Call us at +1 (877) 678-9789 or write to us at <a href="mailto:help@company.com">help@company.com</a>.</p>
+                    <div style="text-align: center; margin-top: 20px;">
+                        <a href="https://www.facebook.com/company" style="margin-right: 10px;"><img src="https://via.placeholder.com/30" alt="Facebook"></a>
+                        <a href="https://www.instagram.com/company" style="margin-right: 10px;"><img src="https://via.placeholder.com/30" alt="Instagram"></a>
+                        <a href="https://twitter.com/company" style="margin-right: 10px;"><img src="https://via.placeholder.com/30" alt="Twitter"></a>
+                    </div>
+                    <p style="font-size: 12px; color: #999; text-align: center;">Copyright © 2022 Company. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
         """
-        message.attach(MIMEText(body, "plain"))
-        
+
+        message.attach(MIMEText(html_content, "html"))
         
         try:
             async with aiosmtplib.SMTP(

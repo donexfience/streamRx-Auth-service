@@ -6,9 +6,14 @@ class ForgotPasswordUseCase:
     def __init__(self, token_repository: IForgotPasswordTokenRepository, email_service: EmailServiceUseCase):
         self.token_repository = token_repository
         self.email_service = email_service
-
+    
     async def request_password_reset(self, user_id: int, email: str) -> str:
         # Generate a token
+        
+        print(user_id,"usr in teh request passowd")
+        if not await self.token_repository.can_request_new_token(user_id):
+            raise Exception("Please wait before requesting another reset link")
+        
         token = await self.token_repository.create_token(user_id)
 
         # Generate the reset link
