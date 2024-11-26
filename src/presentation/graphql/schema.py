@@ -48,6 +48,12 @@ class ForgotPasswordResponse:
     success: bool
     reset_link: Optional[str] = None
 
+@strawberry.input
+class ChangePasswordInput:
+    token: str
+    new_password: str
+
+
 
 @strawberry.input
 class ResetPasswordInput:
@@ -396,17 +402,20 @@ class Mutation:
                     message=str(e)
                 )
     @strawberry.mutation
-    async def change_password(self, info, email: str, new_password: str) -> ForgotPasswordResponse:
+    async def change_password(self, info, input: ChangePasswordInput) -> ForgotPasswordResponse:
         context: CustomContext = info.context
         async with get_session() as session:
             try:
                 user_repository = SQLAlchemyUserRepository(session)
-                forgotTokenRepository = ForgotPasswordTokenRepository(session)
+                forgot_token_repository = ForgotPasswordTokenRepository(session)
                 password_service = PasswordServiceUseCase
-                change_password_use_case = ChangePasswordUseCase(user_repository, password_service, forgotTokenRepository)
-                user = await user_repository.get_by_email(email)
-                token = await forgotTokenRepository.get_valid_token_for_user(user.id)
-                message = await change_password_use_case.execute(user.id, token, new_password)
+                change_password_use_case = ChangePasswordUseCase(user_repository, password_service, forgot_token_repository)
+                token_record = await forgot_token_repository.get_token(input.token)
+                print(token_record,input.token,"token used")
+                if not token_record:
+                    raise ValueError("Invalid or expired token")
+                message = await change_password_use_case.execute(token_record.user_id, token_record, input.new_password)
+                print(message,"message aftere change")
                 return ForgotPasswordResponse(
                     success=True,
                     message=message
@@ -414,10 +423,15 @@ class Mutation:
             except ValueError as e:
                 return ForgotPasswordResponse(
                     success=False,
-                    message=str(e)
+                    message=f"Error: {str(e)}"
                 )
-            
-            
+            except Exception as e:
+                # Catch unexpected errors
+                return ForgotPasswordResponse(
+                    success=False,
+                    message=f"An unexpected error occurred: {str(e)}"
+                )    
+# added  
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:

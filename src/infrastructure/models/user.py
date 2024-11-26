@@ -11,7 +11,7 @@ class UserModel(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
-    profileImageURL = Column(String, nullable=True)
+    profileImageURL  = Column(String, nullable=True)
     is_verified=Column(Boolean,nullable=False,default=True)
     role = Column(SQLAlchemyEnum(UserRole), nullable=False, default=UserRole.VIEWER)  
     created_at = Column(DateTime(timezone=True), server_default=func.now())
