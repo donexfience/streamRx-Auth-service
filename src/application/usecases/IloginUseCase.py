@@ -20,24 +20,28 @@ class LoginUseCase:
         self.token_service  = TokenServiceUseCase()
 
     async def Login(self,email:str,password:str)->Dict :
+        print('user in the login')
         email_obj =str(email)
-        user:Optional[user] = await self.user_repository.get_by_email(email_obj)
+        user:Optional[User] = await self.user_repository.get_by_email(email_obj)
+        print(user,"userrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr")
         if not user:
             return {
                 "success":False,
                 "message":"user not found"
             }
-        if not self.password_service.verify_password(password,user.hashed_password):
+        
+        if not self.password_service.verify_password(password, user.hashed_password):
             return {
-                "sucess":False,
-                "message":"Invalid password"
+                "success": False,
+                "message": "Invalid password"
             }
+
         if not user.is_active:
             return {
                 "success":False,
                 "message":"your accound is blocked Please contact support."
             }
-        print(user,"User in the loign user casse")
+        print(user,"User in the loign user casseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
         token_data = {
             "user_id": user.id,
             "role": user.role.value

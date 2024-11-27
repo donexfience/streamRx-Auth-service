@@ -1,5 +1,6 @@
 from typing import List, Optional, Any
 from contextlib import asynccontextmanager
+from fastapi import Response,Request
 from redis import Redis
 import strawberry
 from strawberry.fastapi import BaseContext, GraphQLRouter
@@ -123,7 +124,7 @@ class CustomContext(BaseContext):
         self.request: Request = request
         self.session: Optional[AsyncSession] = None
         self.redis_client: Optional[Redis] = None
-        self.response: Response = Response()
+        self.response: Response = request.scope.get('response') 
 
     async def __aenter__(self):
         async with get_session() as session:
@@ -326,6 +327,7 @@ class Mutation:
             login_use_case = LoginUseCase(user_repository=user_repository)
         
             result = await login_use_case.Login(input.email, input.password)
+            print(result["success"],result["message"],"loginnnnnnnnnnnnn result")
         
             if not result["success"]:
                 return LoginResponse(
@@ -432,7 +434,19 @@ class Mutation:
                     success=False,
                     message=f"An unexpected error occurred: {str(e)}"
                 )    
-# added  
+    @strawberry.mutation
+    async def Logout(self, info) -> bool:
+        context: CustomContext = info.context
+        response: Response = context.response  
+        try:
+            
+            response.delete_cookie(key="access_token")
+            response.delete_cookie(key="refresh_token")
+            return True
+        except Exception as e:
+            print(f"Error during logout: {e}")
+            return False
+                
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:
