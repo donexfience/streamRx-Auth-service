@@ -406,6 +406,7 @@ class Mutation:
         context: CustomContext = info.context
         async with get_session() as session:
             try:
+                print('hello from change password')
                 user_repository = SQLAlchemyUserRepository(session)
                 forgot_token_repository = ForgotPasswordTokenRepository(session)
                 password_service = PasswordServiceUseCase

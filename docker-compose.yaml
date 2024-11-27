@@ -1,40 +1,41 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Service
   postgres:
     image: postgres:latest
-    container_name: postgres
+    container_name: postgres-container
     environment:
-      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: postgres
       POSTGRES_DB: auth_database
-    ports:
-      - "5432:5432"   # Expose PostgreSQL port to host
     volumes:
-      - postgres-data:/var/lib/postgresql/data   # Persist data between container restarts
-
-  # Redis Service
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    # networks:
+    #   - app-network
   redis:
     image: redis:latest
-    container_name: redis
+    container_name: redis-container
     ports:
-      - "6379:6379"   # Expose Redis port to host
-
-  # FastAPI Application Service
-  fastapi:
-    build: .
-    container_name: fastapi
+      - "6379:6379"
+    # networks:
+    #   - app-network
+  auth_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth_service
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/auth_database
+      REDIS_HOST: redis
+    ports:
+      - "8000:8000"
     depends_on:
       - postgres
       - redis
-    ports:
-      - "8000:8000"  # Expose FastAPI app port to host
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/auth_database
-      REDIS_HOST: redis
-    volumes:
-      - .:/app  # Mount the current directory to /app in the container for code live updates (optional)
-
+    # networks:
+    #   - app-network
 volumes:
-  postgres-data:
+  postgres_data:
+# networks:
+#   app-network:
+#     driver: bridge

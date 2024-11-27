@@ -10,8 +10,11 @@ class ChangePasswordUseCase:
         self.password_service = password_service
 
     async def execute(self, user_id: int, token:str, new_password: str) -> str:
+        print('here in usecase of change passsword',user_id)
         user = await self.user_repository.get_by_id(user_id)
+        print(user,"user found")
         token = await self.forgot_otp_repository.get_valid_token_for_user(user.id)
+        print(token,"token kitti")
         if not token:
             raise ValueError("Token not found")
         if not user:

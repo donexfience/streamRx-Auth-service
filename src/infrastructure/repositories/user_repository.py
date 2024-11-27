@@ -99,13 +99,27 @@ class SQLAlchemyUserRepository(UserRepository):
         )
         user_models = result.scalars().all()
         return [self._map_to_entity(user_model) for user_model in user_models]
-    
-    async def change_password(self, user_id:int, new_password:str)->None:
-       result = await self.session.execute(select(User).where(User.id ==user_id))
-       user = result.scalar_one_or_none()
-       if not user:
-            raise ValueError("User not found")
-       hashed_password = self.passwordService.get_password_hash(new_password)
-       user.hashed_password = hashed_password
-       await self.session.commit()
-    
+
+    async def change_password(self, user_id: int, new_password: str) -> None:
+        try:
+            query = select(UserModel).where(UserModel.id == user_id)
+            result = await self.session.execute(query)
+            user = result.scalar_one_or_none()
+
+            if not user:
+                raise ValueError(f"User with ID {user_id} not found")
+
+            # Hash and update the user's password
+            hashed_password = self.passwordService.get_password_hash(new_password)
+            user.hashed_password = hashed_password
+            
+            await self.session.commit()
+            print(f"Password updated successfully for user: {user_id}")
+
+        except Exception as e:
+            await self.session.rollback()
+            print("Error in change_password:", str(e))
+            raise
+
+
+        
