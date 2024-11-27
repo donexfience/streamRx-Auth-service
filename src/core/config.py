@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "A FastAPI application with GraphQL using clean architecture"
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://user:password@localhost:5432/dbname"
+    DATABASE_URL: str = "postgresql+asyncpg://posgres:postgres@localhost:5432/auth_database"
 
     # Security
     SECRET_KEY: str = "podaenvnokkanvannekannalle"
