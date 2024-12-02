@@ -16,10 +16,6 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    async def update(self, user: User) -> Optional[User]:
-        pass
-
-    @abstractmethod
     async def delete(self, user_id: int) -> bool:
         pass
 
@@ -29,4 +25,8 @@ class UserRepository(ABC):
     
     @abstractmethod
     async def change_password(self,user_id:int,new_password:str)->None:
+        pass
+    
+    @abstractmethod
+    async def updateWithGoogle(self,user_id:int,google_id:str)-> Optional[User]:
         pass

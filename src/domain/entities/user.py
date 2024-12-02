@@ -6,14 +6,15 @@ from src.__lib.UserRole import UserRole
 
 @dataclass
 class User:
-    email: Email 
-    hashed_password: str  
+    email: Email  
+    hashed_password: Optional[str]  =None
     id: Optional[int] = None  
-    profileImageURL: Optional[str] = None
-    is_verified:bool = False  
-    bio: Optional[str] = None  
-    role: UserRole = UserRole.VIEWER 
-    is_active: bool = True  
+    profileImageURL: Optional[str] = None  
+    is_verified: bool = False  
+    bio: Optional[str] = None 
+    role: UserRole = UserRole.VIEWER  
+    is_active: bool = True 
+    google_id: Optional[str] = None 
     created_at: datetime = field(default_factory=datetime.utcnow)  
     updated_at: datetime = field(default_factory=datetime.utcnow)  
 

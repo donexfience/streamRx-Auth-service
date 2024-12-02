@@ -21,7 +21,8 @@ from src.infrastructure.repositories.forgetPasswordTokenRepository import Forgot
 from src.application.usecases.IForgetPasswordUsecase import ForgotPasswordUseCase
 from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCase
 from src.application.services.password_service import PasswordServiceUseCase
-
+from src.application.usecases.IGoogleLoginUsecase import GoogleLoginUseCase
+from src.application.usecases.ItokenUseCases import TokenServiceUseCase
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -86,11 +87,18 @@ class User:
     bio: Optional[str] = None
     profile_image_url: Optional[str] = None
     role: str
+    name:Optional[str]=None
 
 @strawberry.type
 class Token:
     access_token :str
     refresh_token :str
+
+@strawberry.input
+class GoogleLoginInput:
+    email: str
+    google_id: Optional[str]
+    name: Optional[str]
 
 @strawberry.type
 class VerificationResponse:
@@ -446,7 +454,59 @@ class Mutation:
         except Exception as e:
             print(f"Error during logout: {e}")
             return False
-                
+    
+    @strawberry.mutation
+    async def google_login(self, info, input: GoogleLoginInput) -> LoginResponse:
+        context: CustomContext = info.context
+        try:
+            async with get_session() as session:
+
+                user_repository = SQLAlchemyUserRepository(session)
+                login_use_case = GoogleLoginUseCase(user_repository=user_repository,token_service=TokenServiceUseCase)
+
+                # Perform Google login logic
+                result = await login_use_case.execute(
+                    email=input.email,
+                    google_id=input.google_id,
+                    name=input.name
+                )
+                access_token = result['tokens']['access_token']
+                refresh_token = result['tokens']['refresh_token']
+                context.response.set_cookie(
+                    key="access_token",
+                    value=f"Bearer {access_token}",
+                    httponly=True,
+                    max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  
+                )
+                context.response.set_cookie(
+                    key="refresh_token",
+                    value=f"Bearer {refresh_token}",
+                    httponly=True,
+                    max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  
+                )
+                return LoginResponse(
+                    success=True,
+                    message="Google login successful",
+                    user=User(
+                        id=result['user']['id'],
+                        email=result['user']['email'],
+                        role=result['user']['role'],
+                        is_verified=result['user']['is_verified'],
+                        is_active=result['user']['is_active']
+                    ),
+                    token=Token(
+                        access_token=access_token,
+                        refresh_token=refresh_token
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error during Google login: {str(e)}")
+            return LoginResponse(
+                success=False,
+                message=f"Google login failed: {str(e)}",
+                user=None,
+                token=None
+            )
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:

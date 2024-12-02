@@ -55,24 +55,18 @@ class SQLAlchemyUserRepository(UserRepository):
         user_model = result.scalar_one_or_none()
         return self._map_to_entity(user_model) if user_model else None
 
-    async def update(self, user: User) -> Optional[User]:
-        if not user.id:
+    async def updateWithGoogle(self,user_id:int,google_id:str) -> Optional[User]:
+        if not user_id:
             return None
         
         result = await self.session.execute(
-            select(UserModel).filter(UserModel.id == user.id)
+            select(UserModel).filter(UserModel.id == user_id)
         )
         user_model = result.scalar_one_or_none()
         
         if not user_model:
             return None
-
-        user_model.email = str(user.email)
-        user_model.hashed_password = user.hashed_password
-        user_model.is_active = user.is_active
-        user_model.is_verified =user.is_verified
-        user_model.updated_at = datetime.utcnow()
-        user_model.profileImageURL =user.profileImageURL
+        user_model.google_id = google_id
 
         await self.session.commit()
         await self.session.refresh(user_model)
