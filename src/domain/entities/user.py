@@ -8,7 +8,10 @@ from src.__lib.UserRole import UserRole
 class User:
     email: Email  
     hashed_password: Optional[str]  =None
-    id: Optional[int] = None  
+    id: Optional[int] = None
+    username: Optional[str] = None 
+    phone_number: Optional[str] = None  
+    date_of_birth: Optional[datetime] = None  
     profileImageURL: Optional[str] = None  
     is_verified: bool = False  
     bio: Optional[str] = None 

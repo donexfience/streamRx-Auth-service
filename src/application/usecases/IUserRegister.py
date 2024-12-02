@@ -89,7 +89,17 @@ class UserRegistrationServiceUseCase:
         if stored_otp:
             await self.otp_repository.delete_otp_by_id(stored_otp.id)
 
-    async def initiate_registration(self, email: str, password: str, role: UserRole, is_active: bool = True, bio: str = "", profile_image_url: str = "") -> Dict:
+    async def initiate_registration(self,
+    email: str,
+    password: str,
+    role: UserRole,
+    is_active: bool = True,
+    bio: str = "",
+    profile_image_url: str = "",
+    date_of_birth: datetime = None,
+    username: str = "",            
+    phone_number: str = None) -> Dict:
+        print(email,password,role,is_active,bio,profile_image_url,date_of_birth,username,phone_number,"datasssssssssss")
         # Check if there's an ongoing valid registration
         status = await self.get_registration_status(email)
         
@@ -119,7 +129,10 @@ class UserRegistrationServiceUseCase:
             "role": role.value,
             "bio": bio,
             "profileImageURL": profile_image_url,
-            "initiated_at": datetime.utcnow().isoformat()
+            "initiated_at": datetime.utcnow().isoformat(),
+            "username":username,
+            "dateOfBirth":date_of_birth,
+            "phoneNumber":phone_number
         }
         
         # Store registration data with an expiry of 5 minutes in Redis
@@ -162,7 +175,10 @@ class UserRegistrationServiceUseCase:
         bio=cached_data.get("bio") or None,
         is_verified=True,
         profileImageURL=cached_data.get("profileImageURL") or None,
-        is_active=True
+        is_active=True,
+        phone_number=cached_data.get('phoneNumber') or None,
+        date_of_birth=cached_data.get('dateOfBirth') or None,
+        username=cached_data.get('username') or None
         
 )
         created_user = await self.user_repository.create(user)

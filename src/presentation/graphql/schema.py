@@ -23,6 +23,7 @@ from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCas
 from src.application.services.password_service import PasswordServiceUseCase
 from src.application.usecases.IGoogleLoginUsecase import GoogleLoginUseCase
 from src.application.usecases.ItokenUseCases import TokenServiceUseCase
+from datetime import datetime
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -111,8 +112,11 @@ class VerificationResponse:
 class UserCreateInput:
     email: str
     password: str
-    bio: Optional[str] = None
+    bio: Optional[str] = None  
+    username: Optional[str] = None
     profile_image_url: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    phone_number: Optional[str] = None
     
 @strawberry.input
 class LoginInput:
@@ -189,9 +193,14 @@ class Query:
 class Mutation:
     @strawberry.mutation
     async def initiate_registration(self, info, input: UserCreateInput) -> RegistrationResponse:
+        bio = input.bio or None
+        username = input.username or None
+        profile_image_url = input.profile_image_url or None
+        date_of_birth = input.date_of_birth or None
+        phone_number = input.phone_number or None
         context: CustomContext = info.context
-
         try:
+            print(input.phone_number,input.date_of_birth,input.username)
             async with get_redis_client() as redis_client, get_session() as session:
                 registration_service = UserRegistrationServiceUseCase(
                     user_repository=SQLAlchemyUserRepository(session),
@@ -207,8 +216,11 @@ class Mutation:
                     password=input.password,
                     role=UserRole.VIEWER,
                     is_active=True,
-                    bio=input.bio,
-                    profile_image_url=input.profile_image_url,
+                    bio=bio,
+                    profile_image_url=profile_image_url,
+                    date_of_birth=date_of_birth,
+                    phone_number=phone_number,
+                    username=username
                 )
 
                 logger.info(f"Registration result: {result}")
@@ -280,7 +292,7 @@ class Mutation:
                         bio=user.bio,
                         profile_image_url=user.profileImageURL,
                         role=user.role.value,
-                        is_verified=user.is_verified
+                        is_verified=user.is_verified,
                     ),
                     token=tokens
                 )
@@ -376,6 +388,55 @@ class Mutation:
             ),
             token=tokens 
         )
+    @strawberry.mutation
+    async def loginStreamer(self, info, input: LoginInput) -> LoginResponse:
+        context: CustomContext = info.context
+        async with get_redis_client() as redis_client, get_session() as session:
+            user_repository = SQLAlchemyUserRepository(session)
+            login_use_case = LoginUseCase(user_repository=user_repository)
+        
+            result = await login_use_case.StreamerLogin(input.email, input.password)
+            print(result["success"],result["message"],"loginnnnnnnnnnnnn result")
+        
+            if not result["success"]:
+                return LoginResponse(
+                success=False,
+                message=result["message"],
+                user=None,
+                token=None, 
+                )
+        
+        user_data = result["user"]
+        tokens = result["tokens"]
+        access_token = tokens["access_token"]
+        refresh_token = tokens["refresh_token"]
+    
+        context.response.set_cookie(
+            key="access_token",
+            value=f"Bearer {access_token}",
+            httponly=True,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
+        context.response.set_cookie(
+            key="refresh_token",
+            value=f"Bearer {refresh_token}",
+            httponly=True,
+            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
+    
+        tokens = Token(access_token=access_token, refresh_token=refresh_token)
+        return LoginResponse(
+            success=True,
+            message="Login successful",
+            user=User(
+                id=user_data["id"],
+                email=user_data["email"],
+                role=user_data["role"],
+                is_verified=user_data["is_verified"],
+                is_active=user_data["is_active"] 
+            ),
+            token=tokens 
+        )   
     @strawberry.mutation
     async def forgot_password(self, email: str, info) -> ForgotPasswordResponse:
         context: CustomContext = info.context
