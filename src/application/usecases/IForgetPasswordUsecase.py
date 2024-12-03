@@ -20,7 +20,7 @@ class ForgotPasswordUseCase:
         print(f"Generated new token: {token.token}")
 
         # Generate the reset link
-        reset_link = f"https://yourfrontend.com/forgot-password?token={token.token}"
+        reset_link = f"http://localhost:3000/change-password?token={token.token}"
         
         # Send email with the reset link
         await self.email_service.send_password_change_email(email, reset_link)
