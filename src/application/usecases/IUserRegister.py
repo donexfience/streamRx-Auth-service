@@ -50,7 +50,7 @@ class UserRegistrationServiceUseCase:
             }
 
         # Calculate time remaining for OTP
-        expiry_time = stored_otp.created_at + timedelta(minutes=5)  # 5 minutes expiry time
+        expiry_time = stored_otp.created_at + timedelta(minutes=10)  # 5 minutes expiry time
         time_remaining = int((expiry_time - datetime.utcnow()).total_seconds())
         
         if time_remaining <= 0 or stored_otp.is_expired:
@@ -90,7 +90,7 @@ class UserRegistrationServiceUseCase:
             await self.otp_repository.delete_otp_by_id(stored_otp.id)
 
     async def initiate_registration(self,
-    email: str,
+    email: str,     
     password: str,
     role: UserRole,
     is_active: bool = True,
@@ -99,7 +99,7 @@ class UserRegistrationServiceUseCase:
     date_of_birth: datetime = None,
     username: str = "",            
     phone_number: str = None) -> Dict:
-        print(email,password,role,is_active,bio,profile_image_url,date_of_birth,username,phone_number,"datasssssssssss")
+        
         # Check if there's an ongoing valid registration
         status = await self.get_registration_status(email)
         

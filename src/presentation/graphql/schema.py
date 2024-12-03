@@ -112,9 +112,9 @@ class VerificationResponse:
 class UserCreateInput:
     email: str
     password: str
-    bio: Optional[str] = None  
+    bio: Optional[str] = "write something"
     username: Optional[str] = None
-    profile_image_url: Optional[str] = None
+    profile_image_url: Optional[str] = "https://example.com/profile.jpg"
     date_of_birth: Optional[str] = None
     phone_number: Optional[str] = None
     
@@ -180,6 +180,7 @@ class Query:
                 redis_client=redis_client,
             )
             status = await registration_service.get_registration_status(email)
+            print(status,"status of seession")
             return RegistrationStatus(
                 status=status["status"],
                 message=status["message"],
@@ -339,7 +340,7 @@ class Mutation:
                 ),
             )  
         
-    @strawberry.mutation
+    @strawberry.mutation    
     async def login(self, info, input: LoginInput) -> LoginResponse:
         context: CustomContext = info.context
         async with get_redis_client() as redis_client, get_session() as session:
