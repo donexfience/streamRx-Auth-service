@@ -168,7 +168,27 @@ class Query:
                 )
                 for user in users
             ]
-
+    @strawberry.field
+    async def usersById(self,info,id:str)->User:
+        context:CustomContext = info.context
+        async with get_session() as session:
+            repository = SQLAlchemyUserRepository(session)
+            id = int(id)
+            print(id)
+            user = await repository.get_by_id(user_id=id)
+            if user is None:
+                raise Exception(f"User with ID {id} not found")
+            return User(
+                id=user.id,
+                email=str(user.email),
+                is_active=user.is_active,
+                bio = user.bio,
+                profile_image_url=user.profileImageURL,
+                role= user.role,
+                is_verified=user.is_verified
+            )
+    
+    
     @strawberry.field
     async def registration_status(self, info, email: str) -> RegistrationStatus:
         context: CustomContext = info.context
@@ -483,8 +503,9 @@ class Mutation:
                 forgot_token_repository = ForgotPasswordTokenRepository(session)
                 password_service = PasswordServiceUseCase
                 change_password_use_case = ChangePasswordUseCase(user_repository, password_service, forgot_token_repository)
+                print(input.token,"token from frontend")
                 token_record = await forgot_token_repository.get_token(input.token)
-                print(token_record,input.token,"token used")
+                print(token_record,input.token,"token usedddddddddddddddddddddddddddddd")
                 if not token_record:
                     raise ValueError("Invalid or expired token")
                 message = await change_password_use_case.execute(token_record.user_id, token_record, input.new_password)

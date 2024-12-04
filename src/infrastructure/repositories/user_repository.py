@@ -41,9 +41,11 @@ class SQLAlchemyUserRepository(UserRepository):
         return self._map_to_entity(user_model)
 
     async def get_by_id(self, user_id: int) -> Optional[User]:
+        print(user_id,"in the repo user get byid")
         result = await self.session.execute(
             select(UserModel).filter(UserModel.id == user_id)
         )
+        print(result,"user got broooooooooooooooooooooooooo")
         user_model = result.scalar_one_or_none()
         return self._map_to_entity(user_model) if user_model else None
 
