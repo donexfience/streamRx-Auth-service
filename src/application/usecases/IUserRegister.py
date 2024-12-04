@@ -185,10 +185,25 @@ class UserRegistrationServiceUseCase:
     
         # Mark OTP as verified
         await self.otp_repository.mark_as_verified(stored_otp.id)
+        
+        # making object for storing user data
+        
+        user_data = {
+            "id": str(created_user.id),
+            "email": str(created_user.email),
+            "role": created_user.role.value,
+            "bio": created_user.bio,
+            "is_verified": created_user.is_verified,
+            "profileImageURL": created_user.profileImageURL,
+            "is_active": created_user.is_active,
+            "phone_number": created_user.phone_number,
+            "date_of_birth": created_user.date_of_birth.isoformat() if created_user.date_of_birth else None,
+            "username": created_user.username
+        }
     
         # Generate access token
-        access_token = self.token_service.create_access_token({"access_token": str(created_user.id)})
-        refresh_token = self.token_service.create_refresh_token({"refresh_token":str(created_user.id)})
+        access_token = self.token_service.create_access_token(user_data)
+        refresh_token = self.token_service.create_refresh_token(user_data)
     
         # Clean up OTP and Redis cache
         await self.otp_repository.delete_otp_by_id(stored_otp.id)

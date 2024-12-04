@@ -92,13 +92,25 @@ class LoginUseCase:
                 "message":"You cant Login as a Streamer You dont have access"
             }
         print(user,"User in the loign user casseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-        token_data = {
-            "user_id": user.id,
-            "role": user.role.value
-        }
+    
         print(user,"user data")
-        access_token = self.token_service.create_access_token(token_data)
-        refresh_token = self.token_service.create_refresh_token(token_data)
+         # making object for storing user data
+        
+        user_data = {
+            "id": str(user.id),
+            "email": str(user.email),
+            "role": user.role.value,
+            "bio": user.bio,
+            "is_verified":user.is_verified,
+            "profileImageURL": user.profileImageURL,
+            "is_active": user.is_active,
+            "phone_number": user.phone_number,
+            "username": user.username
+        }
+    
+        # Generate access token
+        access_token = self.token_service.create_access_token(user_data)
+        refresh_token = self.token_service.create_refresh_token(user_data)
         return {
             "success": True,
             "message": "Login successful.",
