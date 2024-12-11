@@ -23,7 +23,8 @@ from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCas
 from src.application.services.password_service import PasswordServiceUseCase
 from src.application.usecases.IGoogleLoginUsecase import GoogleLoginUseCase
 from src.application.usecases.ItokenUseCases import TokenServiceUseCase
-from datetime import datetime
+from datetime import datetime,date
+from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -198,6 +199,7 @@ class Query:
                 otp_repository=SQLAlchemyOTPRepository(context.session),
                 email_service=EmailServiceUseCase(),
                 redis_client=redis_client,
+                grpc_client=UserServiceClient()
             )
             status = await registration_service.get_registration_status(email)
             print(status,"status of seession")
@@ -221,16 +223,17 @@ class Mutation:
         phone_number = input.phone_number or None
         context: CustomContext = info.context
         try:
-            print(input.phone_number,input.date_of_birth,input.username)
+            print(input.phone_number,input.date_of_birth,input.username,"dataaaaaaaaaaaaaaagoooooooooooooooooooooootttttttttttttttttttt")
             async with get_redis_client() as redis_client, get_session() as session:
                 registration_service = UserRegistrationServiceUseCase(
                     user_repository=SQLAlchemyUserRepository(session),
                     otp_repository=SQLAlchemyOTPRepository(session),
                     email_service=EmailServiceUseCase(),
                     redis_client=redis_client,
+                    grpc_client= UserServiceClient()
                 )
 
-                logger.info(f"Initiating registration for {input.email}")
+                logger.info(f"Initiating registration for {input.email} ,{input.phone_number} {input.username}")
 
                 result = await registration_service.initiate_registration(
                     email=input.email,
@@ -278,6 +281,7 @@ class Mutation:
                     otp_repository=SQLAlchemyOTPRepository(session),
                     email_service=EmailServiceUseCase(),
                     redis_client=redis_client,
+                    grpc_client=UserServiceClient()
                 )
 
                 logger.info(f"Verifying OTP for {email}")
@@ -333,6 +337,7 @@ class Mutation:
                     otp_repository=SQLAlchemyOTPRepository(session),
                     email_service=EmailServiceUseCase(),
                     redis_client=redis_client,
+                    grpc_client=UserServiceClient()
                 )
 
                 logger.info(f"Resending OTP to {email}")
@@ -545,7 +550,7 @@ class Mutation:
             async with get_session() as session:
 
                 user_repository = SQLAlchemyUserRepository(session)
-                login_use_case = GoogleLoginUseCase(user_repository=user_repository,token_service=TokenServiceUseCase)
+                login_use_case = GoogleLoginUseCase(user_repository=user_repository,token_service=TokenServiceUseCase,grpc_client=UserServiceClient())
 
                 # Perform Google login logic
                 result = await login_use_case.execute(

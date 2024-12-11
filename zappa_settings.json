@@ -1,0 +1,15 @@
+{
+    "production": {
+        "app_function": "main:handler",
+        "aws_region": "us-east-1",
+        "profile_name": "default",
+        "project_name": "auth-service",
+        "runtime": "python3.8",
+        "s3_bucket": "your-deployment-bucket",
+        "memory_size": 256,
+        "timeout_seconds": 30,
+        "environment_variables": {
+            "ENV": "production"
+        }
+    }
+}

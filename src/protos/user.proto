@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package user_service;
+
+option go_package = "user_service";
+
+message User {
+  string id = 1;
+  string email = 2;
+  string hashed_password = 3;
+  string role = 4;
+  string bio = 5;
+  bool is_verified = 6;
+  string profile_image_url = 7;
+  bool is_active = 8;
+  string phone_number = 9;
+  string date_of_birth = 10;
+  string username = 11;
+}
+
+message CreateUserRequest {
+  User user = 1;
+}
+
+message CreateUserResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+}

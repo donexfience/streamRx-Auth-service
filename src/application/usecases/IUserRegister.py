@@ -10,6 +10,7 @@ from src.application.usecases.ItokenUseCases import TokenServiceUseCase
 from src.application.services.password_service import PasswordServiceUseCase
 from src.__lib.UserRole import UserRole
 from src.domain.value_objects.email import Email
+from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 
 class UserRegistrationServiceUseCase:
     def __init__(
@@ -17,7 +18,8 @@ class UserRegistrationServiceUseCase:
         user_repository,
         otp_repository: SQLAlchemyOTPRepository,
         email_service: EmailServiceUseCase,
-        redis_client: Redis
+        redis_client: Redis,
+        grpc_client : UserServiceClient
     ):
         self.user_repository = user_repository
         self.otp_repository = otp_repository
@@ -25,6 +27,7 @@ class UserRegistrationServiceUseCase:
         self.redis_client = redis_client
         self.token_service = TokenServiceUseCase()
         self.password_service = PasswordServiceUseCase()
+        self.grpc_client = grpc_client
         
     def generate_otp(self) -> str:
         """Generate a 6-digit OTP"""
@@ -100,6 +103,8 @@ class UserRegistrationServiceUseCase:
     username: str = "",            
     phone_number: str = None) -> Dict:
         
+        
+        print('data in the intiate registerationsssssssssssssssss',date_of_birth,username,phone_number,)
         # Check if there's an ongoing valid registration
         status = await self.get_registration_status(email)
         
@@ -134,6 +139,8 @@ class UserRegistrationServiceUseCase:
             "dateOfBirth":date_of_birth,
             "phoneNumber":phone_number
         }
+        
+        print(registration_data,"registeration dataaaaaaaaaaain teh cascheeeeeee")
         
         # Store registration data with an expiry of 5 minutes in Redis
         self.redis_client.hset(f"registration:{email}", mapping=registration_data)
@@ -180,14 +187,24 @@ class UserRegistrationServiceUseCase:
         date_of_birth=cached_data.get('dateOfBirth') or None,
         username=cached_data.get('username') or None
         
-)
-        created_user = await self.user_repository.create(user)
-    
+        )
+        print(user,"created user")
+        
+        created_user = await self.user_repository.create(user),
+        grpc_response = await self.grpc_client.send_user_data(created_user[0])
+        
+        if grpc_response["success"]:
+            print(f"user created successfully. Message:{grpc_response['message']}")
+        else:
+             print(f"Error creating user: {grpc_response['message']}")
+             
         # Mark OTP as verified
         await self.otp_repository.mark_as_verified(stored_otp.id)
         
         # making object for storing user data
         
+        print(created_user[0],"created user, after repository")
+        created_user = created_user[0] if created_user else None
         user_data = {
             "id": str(created_user.id),
             "email": str(created_user.email),

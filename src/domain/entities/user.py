@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime,date
 from typing import Optional
 from src.domain.value_objects.email import Email
 from src.__lib.UserRole import UserRole
@@ -11,7 +11,7 @@ class User:
     id: Optional[int] = None
     username: Optional[str] = None 
     phone_number: Optional[str] = None  
-    date_of_birth: Optional[datetime] = None  
+    date_of_birth: Optional[date] = None  
     profileImageURL: Optional[str] = None  
     is_verified: bool = False  
     bio: Optional[str] = None 

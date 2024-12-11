@@ -3,9 +3,10 @@ from src.domain.entities.user import User, UserRole
 
 
 class GoogleLoginUseCase:
-    def __init__(self, user_repository, token_service):
+    def __init__(self, user_repository, token_service,grpc_client):
         self.user_repository = user_repository
         self.token_service = token_service
+        self.grpc_client = grpc_client
 
     async def execute(self, email: str, name: Optional[str] = None, google_id: Optional[str] = None) -> Dict:
         try:
@@ -21,8 +22,10 @@ class GoogleLoginUseCase:
                         google_id=google_id
                     )
                 )
+                await self.grpc_client.send_user_data(user)
             elif not user.google_id and google_id:
                 user = await self.user_repository.updateWithGoogle(user.id, google_id=google_id)
+                await self.grpc_client.send_user_data(user)
             tokens = {
                 "access_token": self.token_service.create_access_token({
                     "user_id": user.id,

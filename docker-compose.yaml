@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
   postgres:
     image: postgres:latest
@@ -10,32 +12,57 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    # networks:
-    #   - app-network
+    networks:
+      - app_network
+
   redis:
     image: redis:latest
     container_name: redis-container
     ports:
       - "6379:6379"
-    # networks:
-    #   - app-network
+    networks:
+      - app_network
+
   auth_service:
     build:
-      context: .
+      context: ./PythonProject
       dockerfile: Dockerfile
     container_name: auth_service
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/auth_database
       REDIS_HOST: redis
+      USER_SERVICE_URL: nestjs_service:50051
     ports:
       - "8000:8000"
     depends_on:
       - postgres
       - redis
-    # networks:
-    #   - app-network
+      - nestjs_service
+    networks:
+      - app_network
+
+  nestjs_service:
+    build:
+      context: ./user-service 
+      dockerfile: Dockerfile
+    container_name: nestjs_service
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/auth_database
+      - REDIS_HOST=redis
+      - GRPC_PORT=50051
+    ports:
+      - "50051:50051"
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - app_network
+
 volumes:
   postgres_data:
-# networks:
-#   app-network:
-#     driver: bridge
+
+networks:
+  app_network:
+    driver: bridge

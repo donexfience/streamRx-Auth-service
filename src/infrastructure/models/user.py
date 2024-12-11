@@ -1,4 +1,5 @@
-from sqlalchemy import Boolean, Column, Integer, String, DateTime,Text
+
+from sqlalchemy import Boolean, Column, Integer, String, DateTime,Text,Date
 from sqlalchemy.sql import func
 from sqlalchemy import Enum as SQLAlchemyEnum  
 from src.infrastructure.database.connection import Base
@@ -12,7 +13,7 @@ class UserModel(Base):
     hashed_password = Column(String, nullable=True)
     username = Column(String, nullable=True)
     phone_number = Column(String, nullable=True)  
-    date_of_birth = Column(DateTime, nullable=True) 
+    date_of_birth = Column(Date, nullable=True) 
     profileImageURL  = Column(String, nullable=True)
     bio = Column(Text,nullable=True)
     social_links=Column(String,nullable=True)

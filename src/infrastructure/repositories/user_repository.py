@@ -5,7 +5,7 @@ from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.application.interfaces.repositories import UserRepository
 from src.infrastructure.models.user import UserModel
-from datetime import datetime
+from datetime import datetime,date
 from src.application.services.password_service import PasswordServiceUseCase
 
 class SQLAlchemyUserRepository(UserRepository):
@@ -20,7 +20,11 @@ class SQLAlchemyUserRepository(UserRepository):
             hashed_password=model.hashed_password,
             is_active=model.is_active,
             created_at=model.created_at,
-            updated_at=model.updated_at
+            updated_at=model.updated_at,
+            username=model.username,
+            date_of_birth=model.date_of_birth,
+            phone_number=model.phone_number
+            
         )
 
     def _map_to_model(self, entity: User) -> UserModel:
@@ -29,6 +33,9 @@ class SQLAlchemyUserRepository(UserRepository):
             email=str(entity.email),
             hashed_password=entity.hashed_password,
             is_active=entity.is_active,
+            username=entity.username,
+            date_of_birth=entity.date_of_birth if isinstance(entity.date_of_birth, datetime) else datetime.strptime(entity.date_of_birth, '%Y-%m-%d'),
+            phone_number=entity.phone_number
         )
 
     async def create(self, user: User) -> User:
@@ -36,6 +43,7 @@ class SQLAlchemyUserRepository(UserRepository):
             raise ValueError("session is not initialized")
         user_model = self._map_to_model(user)
         self.session.add(user_model)
+        print(user_model,"user in the repositoryyyyyyyyyyyyyyyyyyyyyy")
         await self.session.commit()
         await self.session.refresh(user_model)
         return self._map_to_entity(user_model)

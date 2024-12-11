@@ -11,6 +11,7 @@ from src.core.config import settings
 from src.infrastructure.database.connection import engine, init_db
 from src.presentation.api.routes.health import router as health_router
 from src.presentation.graphql.schema import graphql_app
+from mangum imp
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
