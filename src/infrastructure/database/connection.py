@@ -2,10 +2,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from src.core.config import settings
 import logging
+import os
 
+
+
+DATABASE_URL = os.environ.get('DATABASE_URL')
+print(DATABASE_URL,"database url in the connection")
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-engine = create_async_engine(settings.DATABASE_URL, echo=True,pool_pre_ping=True,pool_recycle=3600)
+engine = create_async_engine(DATABASE_URL, echo=True,pool_pre_ping=True,pool_recycle=3600)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 Base = declarative_base()
 
