@@ -16,7 +16,8 @@ from src.infrastructure.repositories.user_repository import SQLAlchemyUserReposi
 from src.application.usecases.IUpdateUsecase import UpdateUserUseCase
 from src.infrastructure.rabbitmq.rabbitmqConsumer import RabbitMQConsumer
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker, declarative_base,
+import magnum
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
