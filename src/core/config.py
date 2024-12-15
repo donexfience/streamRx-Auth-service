@@ -40,6 +40,7 @@ class Settings(BaseSettings):
         "env_file": ".env",      # Load variables from a .env file
     }
 
+    AMQP_URL:str="amqp://rabbitmq:5672"
 
 # Create the settings instance
 settings = Settings()

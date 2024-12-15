@@ -19,3 +19,4 @@ apscheduler
 pytz
 grpcio>=1.68.1
 grpcio-tools==1.67.1
+aio_pika

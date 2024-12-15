@@ -1,8 +1,16 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field,asdict
 from datetime import datetime,date
-from typing import Optional
+from typing import List,Optional
 from src.domain.value_objects.email import Email
 from src.__lib.UserRole import UserRole
+
+
+@dataclass
+class SocialLink:
+    platform: str
+    url: str
+    _id:str
+
 
 @dataclass
 class User:
@@ -20,6 +28,7 @@ class User:
     google_id: Optional[str] = None 
     created_at: datetime = field(default_factory=datetime.utcnow)  
     updated_at: datetime = field(default_factory=datetime.utcnow)  
+    social_links : List[SocialLink] = field(default_factory=list)
 
     @property
     def is_authenticated(self) -> bool:
@@ -40,3 +49,6 @@ class User:
     def is_moderator(self) -> bool:
         """Checks if the user has a moderator role."""
         return self.role == UserRole.MODERATOR
+    def to_dict(self) -> dict:
+        """Convert the User dataclass to a dictionary."""
+        return asdict(self)

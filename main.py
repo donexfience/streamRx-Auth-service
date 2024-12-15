@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy import text
+import asyncio
 import logging
 from typing import Dict, Any
 from src.infrastructure.config.reddis_config import RedisConfig
@@ -11,8 +12,18 @@ from src.core.config import settings
 from src.infrastructure.database.connection import engine, init_db
 from src.presentation.api.routes.health import router as health_router
 from src.presentation.graphql.schema import graphql_app
+from src.infrastructure.repositories.user_repository import SQLAlchemyUserRepository
+from src.application.usecases.IUpdateUsecase import UpdateUserUseCase
+from src.infrastructure.rabbitmq.rabbitmqConsumer import RabbitMQConsumer
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker, declarative_base
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+rabbitmq_consumer: RabbitMQConsumer | None = None
 
 # Database Inspection Utilities
 async def get_all_tables() -> list[str]:
@@ -104,6 +115,23 @@ async def full_database_inspection() -> Dict[str, Any]:
             "tables": {}
         }
 
+
+async def start_rabbitmq_consumer():
+    try:
+        async with async_session() as session:  
+            user_repository = SQLAlchemyUserRepository(session)
+            update_usecase = UpdateUserUseCase(user_repository)
+            
+            consumer = RabbitMQConsumer(settings.AMQP_URL,'user-updated', update_usecase)
+            
+            # Run the consumer in the background
+            asyncio.create_task(consumer.start())
+            global rabbitmq_consumer
+            rabbitmq_consumer = consumer
+    except Exception as e:
+        logger.error(f"Error in starting RabbitMQ consumer: {e}")
+
+
 # Redis client
 redis_client: Redis | None = None
 
@@ -125,7 +153,8 @@ async def lifespan(app: FastAPI):
             logger.info("Redis connection successful")
         except Exception as e:
             logger.error(f"Redis connection failed: {e}")
-
+        asyncio.create_task(start_rabbitmq_consumer())
+        
         yield 
 
     except Exception as e:
@@ -136,6 +165,7 @@ async def lifespan(app: FastAPI):
         if redis_client:
             redis_client.close()
 
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -145,6 +175,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    global rabbitmq_consumer
+    logger.info("Shutting down application...")
+
+    if rabbitmq_consumer:
+        rabbitmq_consumer.stop()  # Stop RabbitMQ consumer
+        logger.info("RabbitMQ consumer stopped.")
+
+    await engine.dispose()  # Close database connection
+    logger.info("Database connection closed.")
+
+    if redis_client:
+        redis_client.close()  # Close Redis connection
+        logger.info("Redis connection closed.")
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -153,6 +199,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
 
 # Include routers
 app.include_router(health_router, prefix="/api/v1", tags=["health"])

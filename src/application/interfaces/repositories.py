@@ -30,3 +30,7 @@ class UserRepository(ABC):
     @abstractmethod
     async def updateWithGoogle(self,user_id:int,google_id:str)-> Optional[User]:
         pass
+    
+    @abstractmethod
+    async def update_user(self,user:User)->Optional[User]:
+        pass

@@ -7,6 +7,7 @@ from src.application.interfaces.repositories import UserRepository
 from src.infrastructure.models.user import UserModel
 from datetime import datetime,date
 from src.application.services.password_service import PasswordServiceUseCase
+import json
 
 class SQLAlchemyUserRepository(UserRepository):
     def __init__(self, session: AsyncSession):
@@ -23,7 +24,8 @@ class SQLAlchemyUserRepository(UserRepository):
             updated_at=model.updated_at,
             username=model.username,
             date_of_birth=model.date_of_birth,
-            phone_number=model.phone_number
+            phone_number=model.phone_number,
+            social_links=model.social_links
             
         )
 
@@ -124,6 +126,62 @@ class SQLAlchemyUserRepository(UserRepository):
             await self.session.rollback()
             print("Error in change_password:", str(e))
             raise
-
-
         
+    async def update_user(self, user: User) -> Optional[User]:
+        print(user, "in the repository")
+        try:
+            if isinstance(user, dict):
+                email = user.get('email')
+                if not email:
+                    raise ValueError("Email is required for user update")
+            else:
+                email = user.email.value if hasattr(user, 'email') else str(user.email)
+            query = select(UserModel).where(UserModel.email == email)
+            print(email, "Email being used for update")
+            result = await self.session.execute(query)
+            db_user = result.scalar_one_or_none()
+            print(db_user, "database user") 
+            if not db_user:
+                return None
+
+            if isinstance(user, dict):
+                update_values = user
+            else:
+                update_values = vars(user)
+
+            for field_name, new_value in update_values.items():
+                if field_name in ['id', 'created_at', 'email']:
+                    continue
+                
+                # Handle Email value object
+                if isinstance(new_value, Email):
+                    new_value = new_value.value 
+                
+                if field_name == 'social_links':
+                    # Serialize social links to JSON string if it's a list of dictionaries
+                    if isinstance(new_value, list):
+                        try:
+                            new_value = json.dumps(new_value)
+                        except Exception as e:
+                            print(f"Error serializing social links: {e}")
+                            continue
+                
+                # Skip None values to preserve existing data
+                if new_value is not None:
+                    try:
+                        setattr(db_user, field_name, new_value)
+                    except AttributeError:
+                        print(f"Could not set attribute {field_name}")
+
+            db_user.updated_at = datetime.utcnow()
+            
+            await self.session.commit()
+            await self.session.refresh(db_user)
+            print(db_user, "database user updated successfully")
+            return self._map_to_entity(db_user)
+        except Exception as e:
+            await self.session.rollback()
+            print("Error in update_user:", str(e))
+            raise
+                
+                    
