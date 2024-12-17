@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FastAPI Application Deployment
+
+Globals:
+  Function:
+    Timeout: 60  # Increased timeout
+    MemorySize: 1024  # Increased memory for complex async operations
+    Layers:
+      - !Ref DependenciesLayer
+    Environment:
+      Variables:
+        DATABASE_URL: !Ref DatabaseURL
+        REDIS_HOST: !Ref RedisHost
+        RABBITMQ_URL: !Ref RabbitMQURL
+        PROJECT_NAME: !Ref ProjectName
+
+Resources:
+  # Dependencies Layer
+  DependenciesLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: python-dependencies
+      Description: Python dependencies for FastAPI application
+      ContentUri: layer/
+      CompatibleRuntimes:
+        - python3.12
+
+  # IAM Role with Customer Managed Policy
+  FastAPIFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::891377111112:role/fastapi
+      Policies:
+        - PolicyName: FastAPILogPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # FastAPI Lambda Function
+  FastAPIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handler.handler
+      Runtime: python3.12
+      Architectures:
+        - x86_64
+      Role: !GetAtt FastAPIFunctionRole.Arn  # Reference the IAM Role created above
+      Timeout: 60
+      MemorySize: 1024
+      Policies:
+        - AWSSecretsManagerReadWrite
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: MyFastAPIProject
+  DatabaseURL:
+    Type: String
+    Description: PostgreSQL Database Connection URL
+  RedisHost:
+    Type: String
+    Description: Redis Host Endpoint
+  RabbitMQURL:
+    Type: String
+    Description: RabbitMQ Connection URL
+
+
