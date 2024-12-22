@@ -30,8 +30,9 @@ class Settings(BaseSettings):
     
     # CORS
     ALLOWED_ORIGINS: List[str] = [
-        "http://localhost:3000",  # React frontend
+        "http://localhost:3002",
         "http://localhost:8000",  # FastAPI backend
+        "http://api_gateway:3002"
     ]
 
     # Configuration for Pydantic

@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/auth_database
       REDIS_HOST: redis
       USER_SERVICE_URL: nestjs_service:50051
+      CORS_ORIGINS: "http://localhost:3002,http://localhost:3000" 
     ports:
       - "8000:8000"
     depends_on:

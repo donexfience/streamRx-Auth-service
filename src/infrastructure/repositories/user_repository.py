@@ -36,7 +36,7 @@ class SQLAlchemyUserRepository(UserRepository):
             hashed_password=entity.hashed_password,
             is_active=entity.is_active,
             username=entity.username,
-            date_of_birth=entity.date_of_birth if isinstance(entity.date_of_birth, datetime) else datetime.strptime(entity.date_of_birth, '%Y-%m-%d'),
+            date_of_birth=entity.date_of_birth if isinstance(entity.date_of_birth,datetime) else datetime.strptime(entity.date_of_birth,'%Y-%m-%d') if entity.date_of_birth else None,
             phone_number=entity.phone_number
         )
 

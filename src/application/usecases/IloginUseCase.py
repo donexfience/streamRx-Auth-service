@@ -41,11 +41,31 @@ class LoginUseCase:
                 "success":False,
                 "message":"your accound is blocked Please contact support."
             }
+            
+        if user.role.value =='streamer':
+            return {
+                "success":False,
+                "message":"Go to stremaer login page"
+            }
+            
+            
         print(user,"User in the loign user casseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+        
+        tokenroles=''
+        
+        if email == 'naji2@gmail.com':
+            tokenroles = 'admin'
+        elif user.role.value == 'streamer': 
+            tokenroles = 'streamer'
+        else:
+            tokenroles = 'viewer'
+
         token_data = {
             "user_id": user.id,
-            "role": user.role.value
+            "role": tokenroles,
+            "email":user.email.value
         }
+        print(token_data,"token data setting ")
         print(user,"user data")
         access_token = self.token_service.create_access_token(token_data)
         refresh_token = self.token_service.create_refresh_token(token_data)

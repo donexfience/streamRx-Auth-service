@@ -16,8 +16,9 @@ from src.infrastructure.repositories.user_repository import SQLAlchemyUserReposi
 from src.application.usecases.IUpdateUsecase import UpdateUserUseCase
 from src.infrastructure.rabbitmq.rabbitmqConsumer import RabbitMQConsumer
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base,
-import magnum
+from sqlalchemy.orm import sessionmaker, declarative_base
+from fastapi.middleware.cors import CORSMiddleware
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -191,16 +192,24 @@ async def shutdown_event():
     if redis_client:
         redis_client.close()  # Close Redis connection
         logger.info("Redis connection closed.")
+        
+
+
+ALLOWED_ORIGINS=["http://localhost:3002","http://localhost:3001","http://localhost:8000","http://api_gateway:3002"]
+print(settings.ALLOWED_ORIGINS)
+
+
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=ALLOWED_ORIGINS,  
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS", "DELETE", "PATCH", "PUT"], 
+    allow_headers=["Content-Type", "Authorization", "Accept"], 
+    expose_headers=["Content-Length"], 
+    max_age=600,  
 )
-
 
 
 # Include routers

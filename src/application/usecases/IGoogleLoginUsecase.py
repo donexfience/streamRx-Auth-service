@@ -22,8 +22,10 @@ class GoogleLoginUseCase:
                         google_id=google_id
                     )
                 )
+                print("user searched with google deatilas",user)
                 await self.grpc_client.send_user_data(user)
             elif not user.google_id and google_id:
+                print("no goolge id")
                 user = await self.user_repository.updateWithGoogle(user.id, google_id=google_id)
                 await self.grpc_client.send_user_data(user)
             tokens = {
@@ -50,6 +52,6 @@ class GoogleLoginUseCase:
             return response_data
 
         except Exception as e:
-            error_message = f"Error during Google login: {e}"
+            error_message = f"Error during Google login in use case google: {e}"
             print(error_message)
             raise RuntimeError(error_message) from e

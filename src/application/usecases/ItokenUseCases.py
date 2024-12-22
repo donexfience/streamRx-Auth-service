@@ -75,3 +75,45 @@ class TokenServiceUseCase:
                 detail=str(e),
                 headers={"WWW-Authenticate": "Bearer"},
             )
+            
+    @staticmethod
+    def refresh_access_token(refresh_token: str) -> str:
+        """Refresh the access token using the refresh token"""
+        try:
+            # Decode and verify the refresh token
+            payload = TokenServiceUseCase.decode_token(refresh_token)
+            if payload.get("token_type") != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid refresh token type",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            # Create a new access token using the information in the refresh token
+            access_token = TokenServiceUseCase.create_access_token(data=payload)
+            return access_token
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token is invalid or expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+              
+    
+    @staticmethod
+    def verify_refresh_token(refresh_token: str) -> Dict:
+        """Verify the validity of the refresh token"""
+        try:
+            payload = TokenServiceUseCase.decode_token(refresh_token)
+            if payload.get("token_type") != "refresh":
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid refresh token type",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            return payload
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )

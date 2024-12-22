@@ -1,10 +1,10 @@
 from typing import List, Optional, Any
 from contextlib import asynccontextmanager
-from fastapi import Response,Request
+from fastapi import Response,Request,HTTPException
 from redis import Redis
 import strawberry
 from strawberry.fastapi import BaseContext, GraphQLRouter
-from fastapi import Request, Response, Depends
+from fastapi import Request, Response, Depends,status
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 from src.infrastructure.database.connection import async_session
 from src.infrastructure.repositories.user_repository import SQLAlchemyUserRepository
@@ -23,7 +23,7 @@ from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCas
 from src.application.services.password_service import PasswordServiceUseCase
 from src.application.usecases.IGoogleLoginUsecase import GoogleLoginUseCase
 from src.application.usecases.ItokenUseCases import TokenServiceUseCase
-from datetime import datetime,date
+from datetime import datetime,date,timedelta
 from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 
 # Setting up logger
@@ -57,6 +57,12 @@ class ChangePasswordInput:
     token: str
     new_password: str
 
+
+@strawberry.type
+class TokenResponse:
+    success: bool
+    message: str
+    new_access_token: Optional[str] = None
 
 
 @strawberry.input
@@ -588,13 +594,41 @@ class Mutation:
                     )
                 )
         except Exception as e:
-            logger.error(f"Error during Google login: {str(e)}")
+            logger.error(f"Error during Google login in schema: {str(e)}")
             return LoginResponse(
                 success=False,
                 message=f"Google login failed: {str(e)}",
                 user=None,
                 token=None
             )
+            
+    @strawberry.mutation
+    async def refresh_access_token(self, info) -> TokenResponse:
+        context: CustomContext = info.context
+        refresh_token = context.request.cookies.get("refresh_token")
+
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token not found",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
+        try:
+            # Use the TokenServiceUseCase to refresh the token
+            new_access_token = await TokenServiceUseCase.refresh_access_token(refresh_token)
+            context.response.set_cookie(
+                key="access_token",
+                value=f"Bearer {new_access_token}",
+                httponly=True,
+                max_age=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+            )
+            return TokenResponse(success=True, message="New access token generated", new_access_token=new_access_token)
+        except Exception as e:
+            return TokenResponse(success=False, message=str(e), new_access_token=None)
+        
+
+
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:
@@ -608,4 +642,4 @@ async def get_context_with_response(request: Request, response: Response) -> Cus
     await context.__aenter__()
     return context
 
-graphql_app = GraphQLRouter(schema, context_getter=get_context_with_response)
+graphql_app = GraphQLRouter(schema, context_getter=get_context_with_response,graphiql=True)
