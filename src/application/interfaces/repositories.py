@@ -34,3 +34,11 @@ class UserRepository(ABC):
     @abstractmethod
     async def update_user(self,user:User)->Optional[User]:
         pass
+    
+    @abstractmethod
+    async def blockOrUnblock(self,email:str,value:bool) ->Optional[User]:
+        pass
+    
+    @abstractmethod
+    async def get_all_users(self)->List[User]:
+        pass

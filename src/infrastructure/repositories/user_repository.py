@@ -50,6 +50,27 @@ class SQLAlchemyUserRepository(UserRepository):
         await self.session.refresh(user_model)
         return self._map_to_entity(user_model)
 
+
+    async def blockOrUnblock(self,email:str,value:bool)->Optional[User]:
+        print('uer in the repo going to block')
+        try: 
+            result = await self.session.execute(
+                select(UserModel).filter(UserModel.email ==email)
+            )
+            user = result.scalar_one_or_none()
+            if not user:
+                print("User not found")
+                return None
+            user.is_blocked = value
+            await self.session.commit()
+            await self.session.refresh(user)
+        
+        except Exception as e:
+            await self.session.rollback()  
+            print(f"Error updating user block status: {e}")
+            return None
+        
+        
     async def get_by_id(self, user_id: int) -> Optional[User]:
         print(user_id,"in the repo user get byid")
         result = await self.session.execute(
@@ -126,6 +147,19 @@ class SQLAlchemyUserRepository(UserRepository):
             await self.session.rollback()
             print("Error in change_password:", str(e))
             raise
+    
+    
+    async def get_all_users(self)->List[User]:
+        try:
+            
+            print("in the user repositoroy")
+            result = await self.session.execute(select(UserModel))
+            users = result.scalars().all()
+            return users
+        except Exception as e:
+           print(f"Error fetching all users: {e}")
+           return []
+    
         
     async def update_user(self, user: User) -> Optional[User]:
         print(user, "in the repository")

@@ -23,6 +23,8 @@ from src.application.usecases.IChangePasswordUsecase import ChangePasswordUseCas
 from src.application.services.password_service import PasswordServiceUseCase
 from src.application.usecases.IGoogleLoginUsecase import GoogleLoginUseCase
 from src.application.usecases.ItokenUseCases import TokenServiceUseCase
+from src.application.usecases.IBlockOrUnblockusecase import BlockorUnblockUseCase
+from src.application.usecases.IFinalAllUseCase import GetAllUsersUseCase
 from datetime import datetime,date,timedelta
 from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 
@@ -65,6 +67,8 @@ class TokenResponse:
     new_access_token: Optional[str] = None
 
 
+
+
 @strawberry.input
 class ResetPasswordInput:
     token: str
@@ -96,7 +100,21 @@ class User:
     profile_image_url: Optional[str] = None
     role: str
     name:Optional[str]=None
+    
+    
+@strawberry.input
+class BlockOrUnblockInput:
+    email: str
+    value:bool
 
+@strawberry.type
+class BlockOrUnblockResponse:
+    success: bool
+    message: str
+    email: Optional[str]
+    status: Optional[str]
+    
+    
 @strawberry.type
 class Token:
     access_token :str
@@ -627,7 +645,32 @@ class Mutation:
         except Exception as e:
             return TokenResponse(success=False, message=str(e), new_access_token=None)
         
+    @strawberry.mutation
+    async def block_or_unblock(self, info, input: BlockOrUnblockInput) -> BlockOrUnblockResponse:
+        context: CustomContext = info.context
+        try:
+            async with get_session() as session:
+                user_repository = SQLAlchemyUserRepository(session)
+                block_or_unblock_use_case = BlockorUnblockUseCase(user_repository)
+                if not input.email:
+                    raise ValueError("Email is required")
 
+                result = await block_or_unblock_use_case.block_or_unblock(input.email,input.value)
+                return BlockOrUnblockResponse(success=True, message="User status updated successfully", email=result["email"], status=result["status"])
+        except Exception as e:
+            return BlockOrUnblockResponse(success=False, message=str(e), email=None, status=None)
+    
+    @strawberry.field
+    async def all_users(self,info)->List[User]:
+        context: CustomContext = info.context
+        try:
+            async with get_session() as session:
+                user_repository = SQLAlchemyUserRepository(session)
+                get_all_users_usecase = GetAllUsersUseCase(user_repository)
+                users = await get_all_users_usecase.execute()
+                return [User(email = users.email,is_blocked=users.is_blocked) for user in users]
+        except Exception as e:
+            print(e,"error")
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
