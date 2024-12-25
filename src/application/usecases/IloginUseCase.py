@@ -106,7 +106,7 @@ class LoginUseCase:
                 "success":False,
                 "message":"your accound is blocked Please contact support."
             }
-        if not user.role == 'streamer':
+        if not user.role == UserRole.STREAMER:
             return{
                 "success":False,
                 "message":"You cant Login as a Streamer You dont have access"

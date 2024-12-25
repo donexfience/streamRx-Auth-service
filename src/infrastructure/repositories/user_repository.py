@@ -5,8 +5,10 @@ from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.application.interfaces.repositories import UserRepository
 from src.infrastructure.models.user import UserModel
+from src.__lib.UserRole import UserRole
 from datetime import datetime,date
 from src.application.services.password_service import PasswordServiceUseCase
+
 import json
 
 class SQLAlchemyUserRepository(UserRepository):
@@ -19,6 +21,7 @@ class SQLAlchemyUserRepository(UserRepository):
             id=model.id,
             email=Email(model.email),
             hashed_password=model.hashed_password,
+            role=model.role,
             is_active=model.is_active,
             created_at=model.created_at,
             updated_at=model.updated_at,
@@ -32,6 +35,7 @@ class SQLAlchemyUserRepository(UserRepository):
     def _map_to_model(self, entity: User) -> UserModel:
         return UserModel(
             id=entity.id,
+            role=entity.role,
             email=str(entity.email),
             hashed_password=entity.hashed_password,
             is_active=entity.is_active,
@@ -51,26 +55,37 @@ class SQLAlchemyUserRepository(UserRepository):
         return self._map_to_entity(user_model)
 
 
-    async def blockOrUnblock(self,email:str,value:bool)->Optional[User]:
-        print('uer in the repo going to block')
-        try: 
+   
+    async def blockOrUnblock(self, email: str, value: bool) -> Optional[UserModel]:
+        print('User in the repo going to block/unblock:', email, value)
+        new_email = Email(email)
+        print('New email object:', new_email)
+
+        try:
             result = await self.session.execute(
-                select(UserModel).filter(UserModel.email ==email)
+                select(UserModel).filter(UserModel.email == new_email.value)
             )
+            print(f"User result for block: {result}")
             user = result.scalar_one_or_none()
+            print(f"User retrieved: {user}")
+
             if not user:
                 print("User not found")
                 return None
-            user.is_blocked = value
+
+            user.is_active = value
             await self.session.commit()
             await self.session.refresh(user)
-        
+            print(f"User after update: {user}")
+            
+            return user
+
         except Exception as e:
-            await self.session.rollback()  
-            print(f"Error updating user block status: {e}")
+            print(f"Error during block/unblock operation: {str(e)}")
+            await self.session.rollback()
             return None
-        
-        
+
+
     async def get_by_id(self, user_id: int) -> Optional[User]:
         print(user_id,"in the repo user get byid")
         result = await self.session.execute(
@@ -149,16 +164,19 @@ class SQLAlchemyUserRepository(UserRepository):
             raise
     
     
-    async def get_all_users(self)->List[User]:
+    async def get_all_users(self) -> List[UserModel]:
         try:
-            
-            print("in the user repositoroy")
-            result = await self.session.execute(select(UserModel))
+            print("Fetching all users from repository")
+            result = await self.session.execute(
+                select(UserModel)
+                .where(UserModel.role != UserRole.ADMIN)  
+                .order_by(UserModel.created_at.desc())   
+            )
             users = result.scalars().all()
             return users
         except Exception as e:
-           print(f"Error fetching all users: {e}")
-           return []
+            print(f"Error fetching all users: {e}")
+            raise e 
     
         
     async def update_user(self, user: User) -> Optional[User]:

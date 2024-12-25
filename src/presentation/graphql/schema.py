@@ -27,6 +27,7 @@ from src.application.usecases.IBlockOrUnblockusecase import BlockorUnblockUseCas
 from src.application.usecases.IFinalAllUseCase import GetAllUsersUseCase
 from datetime import datetime,date,timedelta
 from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
+from src.application.usecases.IStreamerGoogleLoginUsecase import GoogleLoginStreamerUseCase
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -100,6 +101,30 @@ class User:
     profile_image_url: Optional[str] = None
     role: str
     name:Optional[str]=None
+
+
+
+@strawberry.type
+class SocialLink:
+    _id: str
+    platform: str
+    url: str
+
+@strawberry.type
+class UserType:
+    id: int
+    email: str
+    username: Optional[str] = None
+    phone_number: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    profile_image_url: Optional[str] = None
+    bio: Optional[str] = None
+    is_active: bool
+    is_verified: bool
+    role: str
+    created_at: datetime
+    updated_at: datetime
+    google_id: Optional[str] = None
     
     
 @strawberry.input
@@ -177,23 +202,6 @@ class CustomContext(BaseContext):
 @strawberry.type
 class Query:
     @strawberry.field
-    async def users(self, info, skip: int = 0, limit: int = 100) -> List[User]:
-        context: CustomContext = info.context
-        async with get_session() as session:
-            repository = SQLAlchemyUserRepository(session)
-            users = await repository.list_users(skip=skip, limit=limit)
-            return [
-                User(
-                    id=user.id,
-                    email=str(user.email),
-                    is_active=user.is_active,
-                    bio=user.bio,
-                    profile_image_url=user.profileImageURL,
-                    role=user.role.value,
-                )
-                for user in users
-            ]
-    @strawberry.field
     async def usersById(self,info,id:str)->User:
         context:CustomContext = info.context
         async with get_session() as session:
@@ -236,6 +244,36 @@ class Query:
                 expires_in=status.get("expires_in"),
             )
 
+
+    @strawberry.field
+    async def users(self, info) -> List[UserType]:
+        context: CustomContext = info.context
+        try:
+            async with get_session() as session:
+                user_repository = SQLAlchemyUserRepository(session)
+                get_all_users_usecase = GetAllUsersUseCase(user_repository)
+                users = await get_all_users_usecase.execute()
+                return [
+                    UserType(
+                        id=user.id,
+                        email=user.email,
+                        username=user.username,
+                        phone_number=user.phone_number,
+                        date_of_birth=str(user.date_of_birth) if user.date_of_birth else None,
+                        profile_image_url=user.profileImageURL,
+                        bio=user.bio,
+                        is_active=user.is_active,
+                        is_verified=user.is_verified,
+                        role=user.role,
+                        created_at=user.created_at,
+                        updated_at=user.updated_at,
+                        google_id=user.google_id
+                    ) 
+                    for user in users
+                ]
+        except Exception as e:
+            print(f"Error in all_users resolver: {e}")
+            return []
 @strawberry.type
 class Mutation:
     @strawberry.mutation
@@ -619,6 +657,58 @@ class Mutation:
                 user=None,
                 token=None
             )
+    @strawberry.mutation
+    async def google_login_streamer(self, info, input: GoogleLoginInput) -> LoginResponse:
+        context: CustomContext = info.context
+        try:
+            async with get_session() as session:
+
+                user_repository = SQLAlchemyUserRepository(session)
+                login_use_case = GoogleLoginStreamerUseCase(user_repository=user_repository,token_service=TokenServiceUseCase,grpc_client=UserServiceClient())
+
+                # Perform Google login logic
+                result = await login_use_case.execute(
+                    email=input.email,
+                    google_id=input.google_id,
+                    name=input.name
+                )
+                access_token = result['tokens']['access_token']
+                refresh_token = result['tokens']['refresh_token']
+                context.response.set_cookie(
+                    key="access_token",
+                    value=f"Bearer {access_token}",
+                    httponly=True,
+                    max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,  
+                )
+                context.response.set_cookie(
+                    key="refresh_token",
+                    value=f"Bearer {refresh_token}",
+                    httponly=True,
+                    max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,  
+                )
+                return LoginResponse(
+                    success=True,
+                    message="Google login successful",
+                    user=User(
+                        id=result['user']['id'],
+                        email=result['user']['email'],
+                        role=result['user']['role'],
+                        is_verified=result['user']['is_verified'],
+                        is_active=result['user']['is_active']
+                    ),
+                    token=Token(
+                        access_token=access_token,
+                        refresh_token=refresh_token
+                    )
+                )
+        except Exception as e:
+            logger.error(f"Error during Google login in schema: {str(e)}")
+            return LoginResponse(
+                success=False,
+                message=f"Google login failed: {str(e)}",
+                user=None,
+                token=None
+            )
             
     @strawberry.mutation
     async def refresh_access_token(self, info) -> TokenResponse:
@@ -649,29 +739,44 @@ class Mutation:
     async def block_or_unblock(self, info, input: BlockOrUnblockInput) -> BlockOrUnblockResponse:
         context: CustomContext = info.context
         try:
+            if not input.email:
+                return BlockOrUnblockResponse(
+                    success=False, 
+                    message="Email is required",
+                    email=None,
+                    status=None
+                )
+
             async with get_session() as session:
                 user_repository = SQLAlchemyUserRepository(session)
                 block_or_unblock_use_case = BlockorUnblockUseCase(user_repository)
-                if not input.email:
-                    raise ValueError("Email is required")
+                print(f"Attempting to block/unblock user with email: {input.email}")
 
-                result = await block_or_unblock_use_case.block_or_unblock(input.email,input.value)
-                return BlockOrUnblockResponse(success=True, message="User status updated successfully", email=result["email"], status=result["status"])
+                try:
+                    result = await block_or_unblock_use_case.block_or_unblock(input.email, input.value)
+                    return BlockOrUnblockResponse(
+                        success=True,
+                        message="User status updated successfully",
+                        email=result["email"],
+                        status=result["status"]
+                    )
+                except ValueError as ve:
+                    return BlockOrUnblockResponse(
+                        success=False,
+                        message=str(ve),
+                        email=None,
+                        status=None
+                    )
+
         except Exception as e:
-            return BlockOrUnblockResponse(success=False, message=str(e), email=None, status=None)
+            return BlockOrUnblockResponse(
+                success=False,
+                message=f"Unexpected error: {str(e)}",
+                email=None,
+                status=None
+            )
     
-    @strawberry.field
-    async def all_users(self,info)->List[User]:
-        context: CustomContext = info.context
-        try:
-            async with get_session() as session:
-                user_repository = SQLAlchemyUserRepository(session)
-                get_all_users_usecase = GetAllUsersUseCase(user_repository)
-                users = await get_all_users_usecase.execute()
-                return [User(email = users.email,is_blocked=users.is_blocked) for user in users]
-        except Exception as e:
-            print(e,"error")
-
+        
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:

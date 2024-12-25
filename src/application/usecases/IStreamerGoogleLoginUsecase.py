@@ -2,7 +2,7 @@ from typing import Optional, Dict
 from src.domain.entities.user import User, UserRole
 
 
-class GoogleLoginUseCase:
+class GoogleLoginStreamerUseCase:
     def __init__(self, user_repository, token_service,grpc_client):
         self.user_repository = user_repository
         self.token_service = token_service
@@ -11,14 +11,14 @@ class GoogleLoginUseCase:
     async def execute(self, email: str, name: Optional[str] = None, google_id: Optional[str] = None) -> Dict:
         try:
             user: Optional[User] = await self.user_repository.get_by_email(email)
-            if user and user.role.value !='viewer' :
-                raise ValueError(f"User with email {email} not authorized as a viewer current role is{user.role.value}") 
-                     
+            if user and user.role.value != 'streamer':
+                  raise ValueError(f"User with email {email} not authorized as a streamer current role is{user.role.value}")                
+                
             if not user:
                 user = await self.user_repository.create(
                     User(
                         email=email,
-                        role=UserRole.VIEWER,
+                        role=UserRole.STREAMER,
                         bio=None,
                         is_verified=True,
                         is_active=True,
