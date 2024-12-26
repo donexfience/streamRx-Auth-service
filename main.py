@@ -85,12 +85,6 @@ async def inspect_columns(table_name: str) -> list[Dict[str, Any]]:
         return []
 
 async def full_database_inspection() -> Dict[str, Any]:
-    """
-    Perform a comprehensive database inspection.
-    
-    Returns:
-        Dict[str, Any]: Detailed database inspection report
-    """
     try:
         tables = await get_all_tables()
         table_details = {}
