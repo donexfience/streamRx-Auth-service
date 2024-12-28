@@ -14,23 +14,23 @@ class GoogleLoginStreamerUseCase:
             if user and user.role.value != 'streamer':
                   raise ValueError(f"User with email {email} not authorized as a streamer current role is{user.role.value}")                
                 
-            if not user:
-                user = await self.user_repository.create(
-                    User(
-                        email=email,
-                        role=UserRole.STREAMER,
-                        bio=None,
-                        is_verified=True,
-                        is_active=True,
-                        google_id=google_id
-                    )
-                )
-                print("user searched with google deatilas",user)
-                await self.grpc_client.send_user_data(user)
-            elif not user.google_id and google_id:
-                print("no goolge id")
-                user = await self.user_repository.updateWithGoogle(user.id, google_id=google_id)
-                await self.grpc_client.send_user_data(user)
+            # if not user:
+            #     user = await self.user_repository.create(
+            #         User(
+            #             email=email,
+            #             role=UserRole.STREAMER,
+            #             bio=None,
+            #             is_verified=True,
+            #             is_active=True,
+            #             google_id=google_id
+            #         )
+            #     )
+            #     print("user searched with google deatilas",user)
+            #     await self.grpc_client.send_user_data(user)
+            # elif not user.google_id and google_id:
+            #     print("no goolge id")
+            #     user = await self.user_repository.updateWithGoogle(user.id, google_id=google_id)
+            #     await self.grpc_client.send_user_data(user)
             tokens = {
                 "access_token": self.token_service.create_access_token({
                     "user_id": user.id,
