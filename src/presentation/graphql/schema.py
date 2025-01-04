@@ -28,6 +28,7 @@ from src.application.usecases.IFinalAllUseCase import GetAllUsersUseCase
 from datetime import datetime,date,timedelta
 from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 from src.application.usecases.IStreamerGoogleLoginUsecase import GoogleLoginStreamerUseCase
+from src.application.usecases.IRoleChangeUseCases import RoleChangeUsecase
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -131,6 +132,17 @@ class UserType:
 class BlockOrUnblockInput:
     email: str
     value:bool
+
+@strawberry.input
+class changeRoleInput:
+    email: str
+    role: str
+
+@strawberry.type
+class changeRoleResponse:
+    success: bool
+    message: str
+    user: Optional[User]
 
 @strawberry.type
 class BlockOrUnblockResponse:
@@ -733,7 +745,42 @@ class Mutation:
             )
             return TokenResponse(success=True, message="New access token generated", new_access_token=new_access_token)
         except Exception as e:
+      
             return TokenResponse(success=False, message=str(e), new_access_token=None)
+       
+       
+    
+    @strawberry.mutation
+    async def changeRole(self,info,input:changeRoleInput)->changeRoleResponse:
+        context: CustomContext = info.context
+        async with get_session() as session:
+            user_repository = SQLAlchemyUserRepository(session)
+            changeRoleUseCase = RoleChangeUsecase(user_repository)
+            print(f"Attempting to change role of user with email: {input.email}")
+
+            try:
+                result = await changeRoleUseCase.RoleChange(input.email, input.role)
+                user_data = result["user"]
+                user = User(
+                    email=user_data["email"],
+                    role=user_data["role"],
+                    id=user_data["id"],
+                    is_active=user_data["is_active"],
+                    is_verified=user_data["is_verified"],
+                )
+                return changeRoleResponse(
+                    success=True,
+                    message="User role updated successfully",
+                    user=user
+                )
+            except ValueError as ve:
+                return changeRoleResponse(
+                    success=False,
+                    message=str(ve),
+                    user=None
+                )
+
+       
         
     @strawberry.mutation
     async def block_or_unblock(self, info, input: BlockOrUnblockInput) -> BlockOrUnblockResponse:
@@ -775,8 +822,7 @@ class Mutation:
                 email=None,
                 status=None
             )
-    
-        
+               
 schema = strawberry.Schema(query=Query, mutation=Mutation)
 
 async def get_context(request: Request) -> CustomContext:
