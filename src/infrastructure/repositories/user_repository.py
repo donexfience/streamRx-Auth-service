@@ -17,7 +17,7 @@ class SQLAlchemyUserRepository(UserRepository):
         self.passwordService = PasswordServiceUseCase()
 
     def _map_to_entity(self, model: UserModel) -> User:
-        return User(
+        return User(    
             id=model.id,
             email=Email(model.email),
             hashed_password=model.hashed_password,

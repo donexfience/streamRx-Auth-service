@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy import text
 import asyncio
+import socketio
 import logging
 from typing import Dict, Any
 from src.infrastructure.config.reddis_config import RedisConfig
@@ -18,11 +19,17 @@ from src.infrastructure.rabbitmq.rabbitmqConsumer import RabbitMQConsumer
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 from fastapi.middleware.cors import CORSMiddleware
+import socketio
+from src.core.socket_io import sio
+from src.presentation.api.routes.ws_no_prefix import RootNamespace
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+
 
 
 rabbitmq_consumer: RabbitMQConsumer | None = None
@@ -170,6 +177,11 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan
 )
+
+sio.register_namespace(RootNamespace('/'))
+sio_asgi_app = socketio.ASGIApp(socketio_server=sio, other_asgi_app=app)
+
+app.add_websocket_route("/socket.io/", sio_asgi_app)
 
 @app.on_event("shutdown")
 async def shutdown_event():

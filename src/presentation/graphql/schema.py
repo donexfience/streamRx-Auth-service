@@ -29,6 +29,8 @@ from datetime import datetime,date,timedelta
 from src.infrastructure.grpc.GrpcUserServiceClent import UserServiceClient
 from src.application.usecases.IStreamerGoogleLoginUsecase import GoogleLoginStreamerUseCase
 from src.application.usecases.IRoleChangeUseCases import RoleChangeUsecase
+from src.application.usecases.GetUserUsecase import GetUserByIdUseCase
+from src.core.socket_io  import sio
 
 # Setting up logger
 logger = logging.getLogger(__name__)
@@ -168,7 +170,9 @@ class VerificationResponse:
     user: User
     token: Optional[Token] 
 
-
+@strawberry.type
+class GetUserByIdResponse:
+    user: User
 
 @strawberry.input
 class UserCreateInput:
@@ -181,6 +185,10 @@ class UserCreateInput:
     phone_number: Optional[str] = None
     
 @strawberry.input
+class GetUserByEmail:
+    email:str
+    
+@strawberry.input
 class LoginInput:
     email:str
     password:str
@@ -191,6 +199,7 @@ class LoginResponse:
     message:str
     user: Optional["User"]  
     token: Optional[Token] 
+
 
 class CustomContext(BaseContext):
     def __init__(self, request: Request):
@@ -286,6 +295,36 @@ class Query:
         except Exception as e:
             print(f"Error in all_users resolver: {e}")
             return []
+        
+    @strawberry.field
+    async def getUserByEmail(self, info, input: GetUserByEmail) -> Optional[UserType]:
+        context: CustomContext = info.context
+        try:
+
+            async with get_session() as session:
+                print(input.email,"got in the controller schema")
+                get_user = GetUserByIdUseCase(user_repository=SQLAlchemyUserRepository(session))
+                user = await get_user.execute(input.email)
+                print(user,"user got by email from ")
+                return UserType(
+                    id =user.id,
+                    email=user.email,
+                    username=user.username,
+                    phone_number=user.phone_number,
+                    date_of_birth=str(user.date_of_birth) if user.date_of_birth else None,
+                    profile_image_url=user.profileImageURL,
+                    bio=user.bio,
+                    is_active=user.is_active,
+                    is_verified=user.is_verified,
+                    role=user.role,
+                    created_at=user.created_at,
+                    updated_at=user.updated_at,
+                    google_id=user.google_id
+                )
+        except Exception as e:
+            print(f"Error fetching user: {e}")
+            raise strawberry.exceptions.GraphQLError(f"Unable to fetch user: {e}")
+
 @strawberry.type
 class Mutation:
     @strawberry.mutation
@@ -800,6 +839,7 @@ class Mutation:
                 print(f"Attempting to block/unblock user with email: {input.email}")
 
                 try:
+                    await sio.emit("user-blocked", {"email": input.email,"value":input.value})
                     result = await block_or_unblock_use_case.block_or_unblock(input.email, input.value)
                     return BlockOrUnblockResponse(
                         success=True,
@@ -820,7 +860,7 @@ class Mutation:
                 success=False,
                 message=f"Unexpected error: {str(e)}",
                 email=None,
-                status=None
+                status=None 
             )
                
 schema = strawberry.Schema(query=Query, mutation=Mutation)

@@ -13,7 +13,8 @@ class GoogleLoginUseCase:
             user: Optional[User] = await self.user_repository.get_by_email(email)
             if user and user.role.value !='viewer' :
                 raise ValueError(f"User with email {email} not authorized as a viewer current role is{user.role.value}") 
-                     
+            if not user.is_active:
+                raise ValueError(f"User with email {email} is blocked or inactive")   
             if not user:
                 user = await self.user_repository.create(
                     User(
